@@ -1,113 +1,9 @@
 package bmgt
 
 import (
-	"fmt"
-	"golang.org/x/exp/slices"
 	"math/rand"
+	omwrand "github.com/sw965/omw/rand"
 )
-
-type CardName string
-type Attribute string
-type Type string
-
-type Card struct {
-	Name CardName
-	Level int
-	Atk int
-	Def int
-
-	Attribute Attribute
-	Type Type
-
-	IsNormalMonster bool
-	IsEffectMonster bool
-
-    IsNormalSpell bool
-    IsQuickPlaySpell bool
-    IsContinuousSpell bool
-
-	IsNormalTrap bool
-	IsContinuousTrap bool
-	IsCounterTrap bool
-}
-
-type Cards []Card
-
-var EXODIA_DECK = func() Cards {
-	result := Cards{
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-		*CARD_DATA_BASE["封印されしエクゾディア"],
-
-		*CARD_DATA_BASE["封印されし者の左腕"],
-		*CARD_DATA_BASE["封印されし者の左腕"],
-		*CARD_DATA_BASE["封印されし者の左腕"],
-		*CARD_DATA_BASE["封印されし者の左腕"],
-		*CARD_DATA_BASE["封印されし者の左腕"],
-		*CARD_DATA_BASE["封印されし者の左腕"],
-
-		*CARD_DATA_BASE["封印されし者の右腕"],
-		*CARD_DATA_BASE["封印されし者の右腕"],
-		*CARD_DATA_BASE["封印されし者の右腕"],
-		*CARD_DATA_BASE["封印されし者の右腕"],
-		*CARD_DATA_BASE["封印されし者の右腕"],
-		*CARD_DATA_BASE["封印されし者の右腕"],
-
-		*CARD_DATA_BASE["封印されし者の左足"],
-		*CARD_DATA_BASE["封印されし者の左足"],
-		*CARD_DATA_BASE["封印されし者の左足"],
-		*CARD_DATA_BASE["封印されし者の左足"],
-		*CARD_DATA_BASE["封印されし者の左足"],
-		*CARD_DATA_BASE["封印されし者の左足"],
-
-		*CARD_DATA_BASE["封印されし者の右足"],
-		*CARD_DATA_BASE["封印されし者の右足"],
-		*CARD_DATA_BASE["封印されし者の右足"],
-		*CARD_DATA_BASE["封印されし者の右足"],
-		*CARD_DATA_BASE["封印されし者の右足"],
-		*CARD_DATA_BASE["封印されし者の右足"],
-
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-		*CARD_DATA_BASE["強欲な壺"],
-	}
-	return result
-}()
-
-func (cards Cards) Shuffle(r *rand.Rand) Cards {
-	cards = slices.Clone(cards)
-	r.Shuffle(len(cards), func(i, j int) {cards[i], cards[j] = cards[j], cards[i]})
-	return cards
-}
-
-func (cards Cards) Draw(num int) (Cards, Cards, error) {
-	n := len(cards)
-	if n < num {
-		return Cards{}, Cards{}, fmt.Errorf("ドローしようとした枚数 > 残りの枚数")
-	}
-	draw := make(Cards, num)
-	result := make(Cards, n-num)
-
-	for i, card := range cards {
-		if i > num {
-			draw[i] = card
-		} else {
-			result = append(result, card)
-		}
-	}
-
-	return draw, result, nil
-}
 
 const (
 	MONSTER_ZONE_SIZE = 5
@@ -135,40 +31,40 @@ const (
 )
 
 type State struct {
-	Self OneSideState
-	Opponent OneSideState
+	P1 OneSideState
+	P2 OneSideState
 	Turn int
 	Priority int
 	Phase Phase
 }
 
-func NewInitState(selfDeck, opponentDeck Cards, r *rand.Rand) (State, error) {
-	selfDeck = selfDeck.Shuffle(r)
-	opponentDeck = opponentDeck.Shuffle(r)
+func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) (State, error) {
+	p1Deck = omwrand.Shuffled(p1Deck, r)
+	p2Deck = omwrand.Shuffled(p2Deck, r)
 
-	selfHand, selfDeck, err := selfDeck.Draw(5)
+	p1Hand, p1Deck, err := p1Deck.Draw(5)
 	if err != nil {
 		return State{}, err
 	}
 
-	opponentHand, opponentDeck, err := opponentDeck.Draw(5)
+	p2Hand, p2Deck, err := p2Deck.Draw(5)
 	if err != nil {
 		return State{}, err
 	}
 
-	self := OneSideState{}
-	self.LifePoint = 8000
-	self.Hand = selfHand
-	self.Deck = selfDeck
+	p1 := OneSideState{}
+	p1.LifePoint = 8000
+	p1.Hand = p1Hand
+	p1.Deck = p1Deck
 
-	opponent := OneSideState{}
-	opponent.LifePoint = 8000
-	opponent.Hand = opponentHand
-	opponent.Deck = opponentDeck
+	p2 := OneSideState{}
+	p2.LifePoint = 8000
+	p2.Hand = p2Hand
+	p2.Deck = p2Deck
 
-	state := State{Self:self, Opponent:opponent}
+	state := State{P1:p1, P2:p2}
 	state.Turn = 0
 	state.Priority = 0
 	state.Phase = MAIN1_PHASE
-	return state
+	return state, nil
 }

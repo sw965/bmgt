@@ -1,7 +1,8 @@
 package bmgt
 
 import (
-	"github.com/sw965/omw"
+	osmw "github.com/sw965/omw/os"
+	"github.com/sw965/omw/json"
 	"strings"
 )
 
@@ -11,16 +12,18 @@ var CARD_DATA_BASE = func() CardDatabase {
 	result := CardDatabase{}
 
 	add := func (path string) {
-		dirNames, err := omw.DirNames(path)
+		dirEntries, err := osmw.NewDirEntries(path)
 		if err != nil {
 			panic(err)
 		}
+
+		dirNames := dirEntries.Names()
 		for _, dirName := range dirNames {
 			if dirName == "テンプレート.json" {
 				continue
 			}
 			cardName := CardName(strings.TrimRight(dirName, ".json"))
-			card, err := omw.LoadJson[Card](path + dirName)
+			card, err := json.Load[Card](path + dirName)
 			if err != nil {
 				panic(err)
 			}
