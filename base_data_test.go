@@ -1,9 +1,9 @@
 package bmgt_test
 
 import (
-	"testing"
-	"github.com/sw965/bmgt"
 	"fmt"
+	"github.com/sw965/bmgt"
+	"testing"
 )
 
 func TestPrintCARD_DATA_BASE(t *testing.T) {

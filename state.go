@@ -1,10 +1,10 @@
 package bmgt
 
 import (
-	"math/rand"
+	"github.com/sw965/omw/fn"
 	omwrand "github.com/sw965/omw/rand"
 	omws "github.com/sw965/omw/slices"
-	"fmt"
+	"math/rand"
 )
 
 type LifePoint int
@@ -14,27 +14,33 @@ const (
 )
 
 const (
-	MONSTER_ZONE_SIZE = 5
+	MONSTER_ZONE_SIZE    = 5
 	SPELL_TRAP_ZONE_SIZE = 5
 )
 
 type OneSideState struct {
-	LifePoint LifePoint
-	Hand Cards
-	Deck Cards
-	MonsterZone Cards
+	LifePoint     LifePoint
+	Hand          Cards
+	Deck          Cards
+	MonsterZone   Cards
 	SpellTrapZone Cards
-	Graveyard Cards
+	Graveyard     Cards
 
-	IsPriorityWaiver bool
+	IsPriorityWaiver                  bool
 	CurrentTurnNormalSummonUpperLimit int
-	CurrentTurnNormalSummonNum int
-	IsDeclareAnAttack bool
+	CurrentTurnNormalSummonNum        int
+	IsDeclareAnAttack                 bool
 }
 
-func NewOneSideState(deck Cards, r *rand.Rand) (OneSideState, error) {
+func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, error) {
 	var hand Cards
 	var err error
+
+	deck = fn.Map[Cards, Cards](deck, CloneCard)
+	for i := range deck {
+		deck[i].ID = startID + CardID(i)
+	}
+
 	deck = omwrand.Shuffled(deck, r)
 	deck, hand, err = deck.Draw(5)
 
@@ -53,6 +59,31 @@ func (oss OneSideState) Draw(num int) (OneSideState, error) {
 	return oss, err
 }
 
+//手札を捨てる
+func (oss OneSideState) Discard(idxs []int) OneSideState {
+	hand, gy := omws.Pops(oss.Hand, idxs)
+	oss.Hand = hand
+	oss.Graveyard = append(oss.Graveyard, gy...)
+	return oss
+}
+
+//デッキから手札に加える
+func (oss OneSideState) Search(idxs []int, r *rand.Rand) OneSideState {
+	var cards Cards
+	oss.Deck, cards = omws.Pops(oss.Deck, idxs)
+	oss.Hand = append(oss.Hand, cards...)
+	oss.Deck = omwrand.Shuffled(oss.Deck, r)
+	return oss
+}
+
+//墓地から手札に加える
+func (oss OneSideState) Salvage(idxs []int) OneSideState {
+	var cards Cards
+	oss.Hand, cards = omws.Pops(oss.Graveyard, idxs)
+	oss.Hand = append(oss.Hand, cards...)
+	return oss
+}
+
 func (oss *OneSideState) CanNormalSummon() bool {
 	return oss.CurrentTurnNormalSummonNum < oss.CurrentTurnNormalSummonUpperLimit
 }
@@ -60,149 +91,42 @@ func (oss *OneSideState) CanNormalSummon() bool {
 type Phase string
 
 const (
-	DRAW_PHASE = Phase("ドロー")
+	DRAW_PHASE    = Phase("ドロー")
 	STANDBY_PHASE = Phase("スタンバイ")
-	MAIN1_PHASE = Phase("メイン1")
-	BATTLE_PHASE = Phase("バトル")
-	MAIN2_PHASE = Phase("メイン2")
-	END_PHASE = Phase("エンド")
+	MAIN1_PHASE   = Phase("メイン1")
+	BATTLE_PHASE  = Phase("バトル")
+	MAIN2_PHASE   = Phase("メイン2")
+	END_PHASE     = Phase("エンド")
 )
 
 type State struct {
-	P1 OneSideState
-	P2 OneSideState
-	IsP1Turn bool
-	IsP1Priority bool
-	Phase Phase
-	Chain Cards
+	P1            OneSideState
+	P2            OneSideState
+	IsP1Turn      bool
+	IsP1Priority  bool
+	Phase         Phase
+	Chain         Cards
+	OneDayOfPeace bool
 }
 
 func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) (State, error) {
+	p1, err := NewOneSideState(p1Deck, r, 0)
+	if err != nil {
+		return State{}, err
+	}
+	p2, err := NewOneSideState(p2Deck, r, CardID(len(p1Deck)))
 	p1Deck = omwrand.Shuffled(p1Deck, r)
 	p2Deck = omwrand.Shuffled(p2Deck, r)
 
-	p1Hand, p1Deck, err := p1Deck.Draw(5)
-	if err != nil {
-		return State{}, err
-	}
-
-	p2Hand, p2Deck, err := p2Deck.Draw(5)
-	if err != nil {
-		return State{}, err
-	}
-
-	p1 := OneSideState{}
-	p1.LifePoint = INIT_LIFE_POINT
-	p1.Hand = p1Hand
-	p1.Deck = p1Deck
-
-	p2 := OneSideState{}
-	p2.LifePoint = INIT_LIFE_POINT
-	p2.Hand = p2Hand
-	p2.Deck = p2Deck
-
-	state := State{P1:p1, P2:p2}
+	state := State{P1: p1, P2: p2}
 	state.IsP1Turn = true
 	state.IsP1Priority = true
 	state.Phase = DRAW_PHASE
-	return state, nil
+	return state, err
 }
 
-func (state State) LegalActions() Actions {
-	eqNameF := func(name CardName) func(card Card) bool {
-		return func(card Card) bool {
-			return card.Name == name
-		}
-	}
-	p1MonsterZoneEmptyIndices := omws.IndicesFunc(state.P1.MonsterZone, IsEmptyCard)
-	p1MonsterZoneNotEmptyIndices := omws.IndicesFunc(state.P1.MonsterZone, IsNotEmptyCard)
-	p1SpellTrapZoneEmptyIndices := omws.IndicesFunc(state.P1.SpellTrapZone, IsEmptyCard)
-
-	result := make(Actions, 0, 64)
-	if state.Phase == DRAW_PHASE || state.Phase == STANDBY_PHASE {
-		//手札にある速攻魔法の合法手
-		for _, card := range state.P1.Hand {
-			if !card.IsQuickPlaySpell {
-				continue
-			}
-
-			if ACTIVATE_OK[card.Name](&state) {
-				for _, handIdx := range omws.IndicesFunc(state.P1.Hand, eqNameF(card.Name)) {
-					for _, zoneIdx := range p1SpellTrapZoneEmptyIndices {
-						result = append(result, Action{ActivateHandSpellTrap:MoveIndex{Pre:handIdx, Post:zoneIdx}})
-					}
-				}
-			}
-		}
-
-		//セットされている速攻魔法と罠の合法手
-		for _, card := range state.P1.SpellTrapZone {
-			if !IsSpellSpeed2Card(card) {
-				continue
-			}
-
-			if ACTIVATE_OK[card.Name](&state) && !card.IsSetTurn {
-				for _, zoneIdx := range omws.IndicesFunc(state.P1.SpellTrapZone, eqNameF(card.Name)) {
-					result = append(result, Action{SetHandSpellTrap:zoneIdx})
-				}
-			}
-		}
-	}
-
-	if state.Phase == MAIN1_PHASE {
-		for _, card := range state.P1.Hand {
-			handNameIndices := omws.IndicesFunc(state.P1.Hand, eqNameF(card.Name))
-
-			//生贄なしの通常召喚
-			if IsLowLevelMonsterCard(card) && card.CanNormalSummon && state.P1.CanNormalSummon() {
-				for _, handIdx := range handNameIndices {
-					for _, zoneIdx := range p1MonsterZoneEmptyIndices {
-						action := LowLevelMonsterNormalSummonAction{HandIndex:handIdx, MonsterZoneIndex:zoneIdx}
-						result = append(result, Action{LowLevelMonsterNormalSummon:action, IsLowLevelMonsterNormalSummon:true})
-					}
-				}
-			//一体生贄の通常召喚
-			} else if IsMediumLevelMonsterCard(card) && card.CanNormalSummon && state.P1.CanNormalSummon() {
-				for _, handIdx := range handNameIndices {
-					for _, tributeIdx := range p1MonsterZoneNotEmptyIndices {
-						action := 
-						result = append(result, NewTributeActionOfTributeSummon([]int{tributeIdx}) )
-					}
-				}
-			//手札にある魔法罠
-			} else if card.IsSpellTrap() && ACTIVATE_OK[card.Name] {
-				for _, handIdx := range handNameIndices {
-					for _, zoneIdx := range p1SpellTrapZoneEmptyIndices {
-						//魔法カードの時のみセットせずに発動可能(手札から罠が発動出来る場合もあるが、そのようなカードは未実装な為)
-						if card.IsSpell() {
-							result = append(result, NewHandSpellTrapAction(handIdx, zoneIdx, false)...)
-						}
-						result = append(result, NewHandSpellTrapAction(handIdx, zoneIdx, true)...)
-					}
-				}
-			}
-		}
-
-		//起動効果
-		for _, card := range state.P1.MonsterZone {
-			
-		}
-
-		//セットされている魔法・罠
-		for _, card := range state.P1.SpellTrapZone {
-			var activateOK bool
-			if card.IsQuickPlaySpell || card.IsTrap() {
-				activateOK = ACTIVATE_OK[card.Name] && !card.IsSetTurn
-			} else {
-				activateOK = ACTIVATE_OK[card.Name]
-			}
-
-			if activateOK {
-				for _, zoneIdx := range omw.IndicesFunc(state.P1.SpellTrapZone, eqNameF(card.Name)) {
-					result = append(result, NewSetSpellTrapActivateAction(zoneIdx))
-				}
-			}
-		}
-	}
-	return result
+func (state *State) IsMainPhase() bool {
+	return state.Phase == MAIN1_PHASE || state.Phase == MAIN2_PHASE
 }
+
+type StateTransition func(State) (State, error)

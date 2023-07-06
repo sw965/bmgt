@@ -2,165 +2,102 @@ package bmgt
 
 import (
 	"fmt"
+	"github.com/sw965/omw/fn"
+	omathw "github.com/sw965/omw/math"
 	omws "github.com/sw965/omw/slices"
 	"golang.org/x/exp/slices"
 	"strings"
 )
 
-type CardName string
+type BattlePosition string
 
 const (
-	TOON = "トゥーン"
+	ATTACK_POSITION            = BattlePosition("攻撃表示")
+	FACE_UP_DEFENSE_POSITION   = BattlePosition("表側守備表示")
+	FACE_DOWN_DEFENSE_POSITION = BattlePosition("裏側守備表示")
 )
 
-type CardNames []CardName
-
-var EXODIA_PART_NAMES = CardNames{
-	"封印されしエクゾディア",
-	"封印されし者の左腕",
-	"封印されし者の右腕",
-	"封印されし者の左足",
-	"封印されし者の右足",
-}
-
-type Level int
-type Levels []Level
-
-var LOW_LEVELS = Levels{1, 2, 3, 4}
-var MEDIUM_LEVELS = Levels{5, 6}
-
-type Attribute string
-
-const (
-	DARK = Attribute("闇")
-	LIGHT = Attribute("光")
-	EARTH = Attribute("地")
-	WATER = Attribute("水")
-	FIRE = Attribute("炎")
-	WIND = Attribute("風")
-)
-
-type Attributes []Attribute
-
-var ATTRIBUTES = Attributes{DARK, LIGHT, EARTH, WATER, FIRE, WIND}
-
-type Type string
-
-const (
-	DRAGON = "ドラゴン"
-	SPELLCASTER = "魔法使い"
-	ZOMBLE = "ゾンビ"
-	WARRIOR = "戦士"
-	BEAST_WARRIOR = "獣戦士"
-	BEAST = "獣"
-	WINGED_BEAST = "鳥獣"
-	FIEND = "悪魔"
-	FAIRY = "天使"
-	INSECT = "昆虫"
-	DINOSAUR = "恐竜"
-	REPTILE = "爬虫類"
-	FISH = "魚"
-	SEA_SERPENT = "海竜"
-	MACHINE = "機械"
-	THUNDER = "雷"
-	AQUA = "水"
-	PYRO = "炎"
-	ROCK = "岩石"
-	PLANT = "植物"
-	PSYCHIC = "サイキック"
-	WYRM = "幻竜"
-	CYBERSE = "サイバース"
-	DIVINE_BEAST = "幻神獣"
-)
-
-type Types []Type
-
-var TYPES = Types{
-	DRAGON, SPELLCASTER, ZOMBLE, WARRIOR, BEAST_WARRIOR,
-	BEAST, WINGED_BEAST, FIEND, FAIRY, INSECT,
-	DINOSAUR, REPTILE, FISH, SEA_SERPENT, MACHINE,
-	THUNDER, AQUA, PYRO, ROCK, PLANT,
-	PSYCHIC, WYRM, CYBERSE, DIVINE_BEAST,
-}
+type CardID int
 
 type Card struct {
-	Name CardName
-	Level Level
-	Atk int
-	Def int
-
-	Attribute Attribute
-	Type Type
-
-	IsNormalMonster bool
-	IsEffectMonster bool
-	IsSpiritMonster bool
-	CanNormalSummon bool
-
-    IsNormalSpell bool
-    IsQuickPlaySpell bool
-    IsContinuousSpell bool
-
-	IsNormalTrap bool
-	IsContinuousTrap bool
-	IsCounterTrap bool
-
-	IsAttackPosition bool
-	IsFaceUpDefensePosition bool
-	IsFaceDownDefensePosition bool
-
-	IsSetTurn bool
-	IsNormalSummoned bool
+	Name                         CardName
+	BattlePosition               BattlePosition
+	IsSetTurn                    bool
+	ThisTurnEffectActivateCounts []int
+	SelectEffectNumber           int
+	ID                           CardID
 }
 
 var EMPTY_CARD = Card{}
 
-func (card Card) Clone() Card {
-	return card
-}
-
-func IsSpellSpeed2Card(card Card) bool {
-	return card.IsQuickPlaySpell || IsTrapCard(card)
-}
-
 func IsEmptyCard(card Card) bool {
-	return card == EMPTY_CARD
+	return card.Name == ""
 }
 
 func IsNotEmptyCard(card Card) bool {
-	return card != EMPTY_CARD
+	return card.Name != ""
+}
+
+func CloneCard(card Card) Card {
+	card.ThisTurnEffectActivateCounts = slices.Clone(card.ThisTurnEffectActivateCounts)
+	return card
+}
+
+func EqualNameCard(name CardName) func(Card) bool {
+	return func(card Card) bool {
+		return card.Name == name
+	}
+}
+
+func EqualIDCard(id CardID) func(Card) bool {
+	return func(card Card) bool {
+		return card.ID == id
+	}
+}
+
+func IsSpellSpeed2Card(card Card) bool {
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsQuickPlaySpell || data.IsTrap()
 }
 
 func IsMonsterCard(card Card) bool {
-	return card.IsNormalMonster || card.IsEffectMonster
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsMonster()
 }
 
 func IsLowLevelMonsterCard(card Card) bool {
-	return slices.Contains(LOW_LEVELS, card.Level)
+	data := CARD_DATA_BASE[card.Name]
+	return slices.Contains(LOW_LEVELS, data.Level)
 }
 
 func IsLevel4MonsterCard(card Card) bool {
-	return card.Level == 4
+	data := CARD_DATA_BASE[card.Name]
+	return data.Level == 4
 }
 
 func IsMediumLevelMonsterCard(card Card) bool {
-	return slices.Contains(MEDIUM_LEVELS, card.Level)
+	data := CARD_DATA_BASE[card.Name]
+	return slices.Contains(MEDIUM_LEVELS, data.Level)
 }
 
 func IsHighLevelMonsterCard(card Card) bool {
-	return card.Level > omathw.Max(MEDIUM_LEVELS...)
+	data := CARD_DATA_BASE[card.Name]
+	return data.Level > omathw.Max(MEDIUM_LEVELS...)
 }
 
 func IsSpiritMonsterCard(card Card) bool {
-	return card.IsSpiritMonster
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsSpiritMonster
 }
 
 func IsSpellCard(card Card) bool {
-	return card.IsNormalSpell || card.IsQuickPlaySpell || card.IsContinuousSpell
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsTrap()
 }
 
 func IsTrapCard(card Card) bool {
-	return card.IsNormalTrap || card.IsContinuousTrap
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsTrap()
 }
 
 func IsToonCard(card Card) bool {
@@ -223,39 +160,21 @@ var OLD_LIBRARY_EXODIA_DECK = func() Cards {
 func NewCards(names ...CardName) (Cards, error) {
 	result := make(Cards, len(names))
 	for i, name := range names {
-		var card *Card
+		var card Card
 		if name == "" {
-			copyCard := EMPTY_CARD.Clone()
-			card = &copyCard
+			cloneCard := CloneCard(EMPTY_CARD)
+			card = cloneCard
 		} else {
-			var ok bool
-			card, ok = CARD_DATA_BASE[name]
-			copyCard := card.Clone()
-			card = &copyCard
+			data, ok := CARD_DATA_BASE[name]
 			if !ok {
 				msg := fmt.Sprintf("データベースに存在しないカード名が入力された。入力されたカード名 = %v", name)
 				return Cards{}, fmt.Errorf(msg)
 			}
+			card = Card{Name: name, ThisTurnEffectActivateCounts: make([]int, len(data.EffectTypes))}
 		}
-		result[i] = *card
+		result[i] = card
 	}
 	return result, nil
-}
-
-func NewCardsWithPanic(names ...CardName) Cards {
-	cards, err := NewCards(names...)
-	if err != nil {
-		panic(err)
-	}
-	return cards
-}
-
-func (cards Cards) Names() CardNames {
-	result := make(CardNames, len(cards))
-	for i, card := range cards {
-		result[i] = card.Name
-	}
-	return result
 }
 
 func (cards Cards) Draw(num int) (Cards, Cards, error) {
@@ -269,4 +188,16 @@ func (cards Cards) Draw(num int) (Cards, Cards, error) {
 		drawCards[i] = drawCard
 	}
 	return cards, drawCards, nil
+}
+
+func (cards Cards) Clone() Cards {
+	return fn.Map[Cards, Cards](cards, CloneCard)
+}
+
+func (cards Cards) NameIndices(name CardName) []int {
+	return omws.IndicesFunc(cards, EqualNameCard(name))
+}
+
+func (cards Cards) IDIndex(id CardID) int {
+	return slices.IndexFunc(cards, EqualIDCard(id))
 }

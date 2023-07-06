@@ -1,49 +1,77 @@
 package bmgt
 
 import (
-	"golang.org/x/exp/slices"
+	omws "github.com/sw965/omw/slices"
 )
 
-//https://yugioh-wiki.net/index.php?%C8%AF%C6%B0
+type ActivateOK func(*State, *Card) []bool
 
-type ActivateOK func(*State) bool
+//サンダー・ドラゴン
+func ThunderDragonActivateOK(state *State, card *Card) []bool {
+	hc := omws.CountFunc(state.P1.Hand, EqualIDCard(card.ID))
+	dc := omws.CountFunc(state.P1.Deck, EqualNameCard("サンダー・ドラゴン"))
+	effect0 := hc >= 1 && dc >= 1
+	return []bool{effect0}
+}
 
 //召喚僧サモンプリースト
-func SummonerMonkActivateOK(state *State) bool {
-	effect2 := slices.ContainsFunc(state.P1.Hand, IsSpellCard) && slices.ContainsFunc(state.P1.Deck, IsLevel4MonsterCard)
-	return effect2
+func SummonerMonkActivateOK(state *State, card *Card) []bool {
+	ac := card.ThisTurnEffectActivateCounts[2]
+	hc := omws.CountFunc(state.P1.Hand, IsSpellCard)
+	dc := omws.CountFunc(state.P1.Deck, IsLevel4MonsterCard)
+	effect2 := ac == 1 && hc >= 1 && dc >= 1
+	return []bool{false, false, effect2}
+}
+
+//一時休戦
+func OneDayOfPeaceActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Deck) >= 1 && len(state.P2.Deck) >= 1
+	return []bool{effect0}
+}
+
+//打ち出の小槌
+func MagicalMalletActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Hand) >= 1
+	return []bool{effect0}
 }
 
 //強欲な壺
-func PotOfGreedActivateOK(state *State) bool {
-	return len(state.P1.Deck) >= 2
-}
-
-//強欲な瓶
-func JarOfGreedActivateOK(state *State) bool {
-	return len(state.P1.Deck) >= 1
-}
-
-//八汰烏の骸
-func LegacyOfYataGarasuActivateOK(state *State) bool {
-	select0 := len(state.P1.Deck) >= 1
-	select1 := len(state.P1.Deck) >= 2 && slices.ContainsFunc(state.P1.MonsterZone, IsSpiritMonsterCard)
-	return select0 || select1
-}
-
-//トゥーンのもくじ
-func ToonTableOfContentsActivateOK(state *State) bool {
-	return slices.ContainsFunc(state.P1.Deck, IsToonCard)
+func PotOfGreedActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Deck) >= 2
+	return []bool{effect0}
 }
 
 //手札断殺
-func HandDestructionActivateOK(state *State) bool {
-	return len(state.P1.Hand) >= 3 && len(state.P2.Hand) >= 2 && len(state.P1.Deck) >= 2 && len(state.P2.Deck) >= 2
+func HandDestructionActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Hand) >= 3 && len(state.P2.Hand) >= 2 && len(state.P1.Deck) >= 2 && len(state.P2.Deck) >= 2
+	return []bool{effect0}
 }
 
-var ACTIVATE_OK = map[CardName]ActivateOK {
-	"強欲な壺":PotOfGreedActivateOK,
-	"強欲な瓶":JarOfGreedActivateOK,
-	"八汰烏の骸":LegacyOfYataGarasuActivateOK,
-	TOON+"のもくじ":ToonTableOfContentsActivateOK,
+//トゥーン・ワールド
+func ToonWorldActivateOK(state *State, card *Card) []bool {
+	effect0 := state.P1.LifePoint > 1000
+	return []bool{effect0}
+}
+
+//強欲な瓶
+func JarofGreedActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Deck) >= 1
+	return []bool{effect0}
+}
+
+//八汰烏の骸
+func LegacyOfYataGarasuActivateOK(state *State, card *Card) []bool {
+	effect0 := len(state.P1.Deck) >= 1
+	return []bool{effect0}
+}
+
+var ACTIVATE_OK = map[CardName]ActivateOK{
+	"サンダー・ドラゴン":   ThunderDragonActivateOK,
+	"召喚僧サモンプリースト": SummonerMonkActivateOK,
+	"一時休戦":        OneDayOfPeaceActivateOK,
+	"打ち出の小槌":      MagicalMalletActivateOK,
+	"強欲な壺":        PotOfGreedActivateOK,
+	"手札断殺":        HandDestructionActivateOK,
+	"トゥーン・ワールド":   ThunderDragonActivateOK,
+	"八汰烏の骸":       LegacyOfYataGarasuActivateOK,
 }
