@@ -22,9 +22,11 @@ type CardID int
 type Card struct {
 	Name                         CardName
 	BattlePosition               BattlePosition
-	IsSetTurn                    bool
-	ThisTurnEffectActivateCounts []int
+	IsSet bool
+	IsSetTurn                 bool
+	ThisTurnEffectActivationCounts []int
 	SelectEffectNumber           int
+	SpellCounter int
 	ID                           CardID
 }
 
@@ -39,7 +41,7 @@ func IsNotEmptyCard(card Card) bool {
 }
 
 func CloneCard(card Card) Card {
-	card.ThisTurnEffectActivateCounts = slices.Clone(card.ThisTurnEffectActivateCounts)
+	card.ThisTurnEffectActivationCounts = slices.Clone(card.ThisTurnEffectActivationCounts)
 	return card
 }
 
@@ -102,6 +104,22 @@ func IsTrapCard(card Card) bool {
 
 func IsToonCard(card Card) bool {
 	return strings.Contains(string(card.Name), string(TOON))
+}
+
+func CanPutSpellCounter(card Card) bool {
+	return card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter
+}
+
+//王立魔法図書館
+func PlaceRoyalMagicalLibrarySpellCounter(card Card) Card {
+	if card.Name == "王立魔法図書館" {
+		if card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter  {
+			card.SpellCounter += 1
+		}
+		return card
+	} else {
+		return card
+	}
 }
 
 type Cards []Card
@@ -170,11 +188,19 @@ func NewCards(names ...CardName) (Cards, error) {
 				msg := fmt.Sprintf("データベースに存在しないカード名が入力された。入力されたカード名 = %v", name)
 				return Cards{}, fmt.Errorf(msg)
 			}
-			card = Card{Name: name, ThisTurnEffectActivateCounts: make([]int, len(data.EffectTypes))}
+			card = Card{Name: name, ThisTurnEffectActivationCounts: make([]int, len(data.EffectTypes))}
 		}
 		result[i] = card
 	}
 	return result, nil
+}
+
+func (cards Cards) Names() CardNames {
+	y := make(CardNames, len(cards))
+	for i, card := range cards {
+		y[i] = card.Name
+	}
+	return y
 }
 
 func (cards Cards) Draw(num int) (Cards, Cards, error) {
@@ -192,12 +218,4 @@ func (cards Cards) Draw(num int) (Cards, Cards, error) {
 
 func (cards Cards) Clone() Cards {
 	return fn.Map[Cards, Cards](cards, CloneCard)
-}
-
-func (cards Cards) NameIndices(name CardName) []int {
-	return omws.IndicesFunc(cards, EqualNameCard(name))
-}
-
-func (cards Cards) IDIndex(id CardID) int {
-	return slices.IndexFunc(cards, EqualIDCard(id))
 }

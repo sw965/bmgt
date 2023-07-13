@@ -114,6 +114,8 @@ type CardBaseData struct {
 	IsNormalTrap     bool
 	IsContinuousTrap bool
 	IsCounterTrap    bool
+
+	MaxSpellCounter int
 	EffectTypes      EffectTypes
 }
 
@@ -184,3 +186,7 @@ func init() {
 		}
 	}
 }
+
+const (
+	SAME_CARD_NAME_LIMIT = 3
+)

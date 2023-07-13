@@ -5,6 +5,7 @@ import (
 	omwrand "github.com/sw965/omw/rand"
 	omws "github.com/sw965/omw/slices"
 	"math/rand"
+	"fmt"
 )
 
 type LifePoint int
@@ -14,8 +15,8 @@ const (
 )
 
 const (
-	MONSTER_ZONE_SIZE    = 5
-	SPELL_TRAP_ZONE_SIZE = 5
+	MONSTER_ZONE_LENGTH    = 5
+	SPELL_TRAP_ZONE_LENGTH = 5
 )
 
 type OneSideState struct {
@@ -30,6 +31,7 @@ type OneSideState struct {
 	CurrentTurnNormalSummonUpperLimit int
 	CurrentTurnNormalSummonNum        int
 	IsDeclareAnAttack                 bool
+	OncePerTurn CardNames
 }
 
 func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, error) {
@@ -48,6 +50,8 @@ func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, er
 	result.LifePoint = INIT_LIFE_POINT
 	result.Hand = hand
 	result.Deck = deck
+	result.MonsterZone = make(Cards, MONSTER_ZONE_LENGTH)
+	result.SpellTrapZone = make(Cards, SPELL_TRAP_ZONE_LENGTH)
 	result.Graveyard = make(Cards, 0, len(deck))
 	return result, err
 }
@@ -105,7 +109,13 @@ type State struct {
 	IsP1Turn      bool
 	IsP1Priority  bool
 	Phase         Phase
-	Chain         Cards
+	Chain         Chain
+
+	SelectCards Cards
+	EffectProcessingCardName CardName
+	EffectProcessingNumber int
+
+	//一時休戦
 	OneDayOfPeace bool
 }
 
@@ -127,6 +137,19 @@ func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) (State, error) {
 
 func (state *State) IsMainPhase() bool {
 	return state.Phase == MAIN1_PHASE || state.Phase == MAIN2_PHASE
+}
+
+func (state *State) CanSpellSpeed1Activation() bool {
+	return state.IsMainPhase() && len(state.Chain) == 0
+}
+
+func(state State) Print() {
+	fmt.Println(state.P2.Hand.Names())
+	fmt.Println(state.P2.SpellTrapZone.Names())
+	fmt.Println(state.P2.MonsterZone.Names())
+	fmt.Println(state.P1.MonsterZone.Names())
+	fmt.Println(state.P1.SpellTrapZone.Names())
+	fmt.Println(state.P1.Hand.Names())
 }
 
 type StateTransition func(State) (State, error)
