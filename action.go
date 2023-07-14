@@ -4,6 +4,7 @@ import (
 	"golang.org/x/exp/slices"
 	"github.com/sw965/omw/fn"
 	omathw "github.com/sw965/omw/math"
+	omws "github.com/sw965/omw/slices"
 )
 
 type Action struct {
@@ -29,6 +30,30 @@ func NewHandIndexActions(name CardName, handLength, effectNum int, isCost bool) 
 			HandIndices:[]int{i},
 			EffectNumber:effectNum,
 			IsCost:isCost,
+		}
+	}
+	return result
+}
+
+func NewHandIndicesActions(selectCardNums []int, name CardName, handLength, effectNum int, isCost bool) Actions {
+	cs := make([][][]int, len(selectCardNums))
+	yn := 0
+	for i, r := range selectCardNums {
+		c := omathw.Combination{N:handLength, R:r}
+		yn += c.TotalNum()
+		cs[i] = c.Get()
+	}
+
+	result := make(Actions, 0, yn)
+	for _, c := range cs {
+		for _, idxs := range c {
+			action := Action{
+				CardName:name,
+				HandIndices:idxs,
+				EffectNumber:effectNum,
+				IsCost:isCost,
+			}
+			result = append(result, action)
 		}
 	}
 	return result
@@ -60,10 +85,10 @@ func NewDeckIndexActions(name CardName, deckLength, effectNum int, isCost bool) 
 	return result
 }
 
-func NewDeckIndicesActions(cardSelectNums []int, name CardName, deckLength, effectNum int, isCost bool) Actions {
-	cs := make([][][]int, len(cardSelectNums))
+func NewDeckIndicesActions(selectCardNums []int, name CardName, deckLength, effectNum int, isCost bool) Actions {
+	cs := make([][][]int, len(selectCardNums))
 	yn := 0
-	for i, r := range cardSelectNums {
+	for i, r := range selectCardNums {
 		c := omathw.Combination{N:deckLength, R:r}
 		yn += c.TotalNum()
 		cs[i] = c.Get()
@@ -97,6 +122,10 @@ func NewHandIndexAndMonsterZoneIndexActions(name CardName, handLength, effectNum
 		}
 	}
 	return result
+}
+
+func NewNormalSummonLegalActions(state *State) Actions {
+	return Actions{}
 }
 
 func NewHandNormalSpellCardActivationLegalActions(state *State) Actions {
@@ -257,3 +286,17 @@ func NewSummonerMonkEffectLegalActionss(state *State) Actionss {
 	return Actionss{effect0, effect1, effect2}
 }
 
+//手札断殺
+func NewHandDestructionEffectLegalActionss(state *State) Actionss {
+	effect0 := NewHandIndicesActions([]int{2}, "手札断殺", len(state.P1.Hand), 0, false)
+	return Actionss{effect0}
+}
+
+//打ち出の小槌
+func NewMagicalMalletEffectLegalActionss(state *State) Actionss {
+	n := len(state.P1.Hand)
+	rng := omws.IntegerRange[[]int, int]{Start:0, End:n, Step:1}
+	selectCardNums := rng.Make()
+	effect0 := NewHandIndicesActions(selectCardNums, "打ち出の小槌", n, 0, false)
+	return Actionss{effect0}
+}
