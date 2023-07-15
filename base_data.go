@@ -116,7 +116,7 @@ type CardBaseData struct {
 	IsCounterTrap    bool
 
 	MaxSpellCounter int
-	EffectTypes      EffectTypes
+	EffectTypes     EffectTypes
 }
 
 func (data *CardBaseData) IsMonster() bool {

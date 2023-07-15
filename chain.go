@@ -1,12 +1,12 @@
-package  bmgt
+package bmgt
 
 import (
-	"math/rand"
 	omws "github.com/sw965/omw/slices"
+	"math/rand"
 )
 
 type ChainLink struct {
-	Card Card
+	Card         Card
 	EffectNumber int
 }
 

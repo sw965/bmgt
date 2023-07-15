@@ -20,14 +20,18 @@ const (
 type CardID int
 
 type Card struct {
-	Name                         CardName
-	BattlePosition               BattlePosition
-	IsSet bool
-	IsSetTurn                 bool
+	Name           CardName
+	BattlePosition BattlePosition
+
+	IsSet     bool
+	IsSetTurn bool
+
 	ThisTurnEffectActivationCounts []int
-	SelectEffectNumber           int
-	SpellCounter int
-	ID                           CardID
+	SelectEffectNumber             int
+	SpellCounter                   int
+
+	ID        CardID
+	TargetIDs []CardID
 }
 
 var EMPTY_CARD = Card{}
@@ -110,10 +114,10 @@ func CanPutSpellCounter(card Card) bool {
 	return card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter
 }
 
-//王立魔法図書館
+// 王立魔法図書館
 func PlaceRoyalMagicalLibrarySpellCounter(card Card) Card {
 	if card.Name == "王立魔法図書館" {
-		if card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter  {
+		if card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter {
 			card.SpellCounter += 1
 		}
 		return card

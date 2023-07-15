@@ -1,11 +1,11 @@
 package bmgt
 
 import (
+	"fmt"
 	"github.com/sw965/omw/fn"
 	omwrand "github.com/sw965/omw/rand"
 	omws "github.com/sw965/omw/slices"
 	"math/rand"
-	"fmt"
 )
 
 type LifePoint int
@@ -31,7 +31,7 @@ type OneSideState struct {
 	CurrentTurnNormalSummonUpperLimit int
 	CurrentTurnNormalSummonNum        int
 	IsDeclareAnAttack                 bool
-	OncePerTurn CardNames
+	OncePerTurn                       CardNames
 }
 
 func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, error) {
@@ -63,7 +63,7 @@ func (oss OneSideState) Draw(num int) (OneSideState, error) {
 	return oss, err
 }
 
-//手札を捨てる
+// 手札を捨てる
 func (oss OneSideState) Discard(idxs []int) OneSideState {
 	hand, gy := omws.Pops(oss.Hand, idxs)
 	oss.Hand = hand
@@ -71,7 +71,7 @@ func (oss OneSideState) Discard(idxs []int) OneSideState {
 	return oss
 }
 
-//デッキから手札に加える
+// デッキから手札に加える
 func (oss OneSideState) Search(idxs []int, r *rand.Rand) OneSideState {
 	var cards Cards
 	oss.Deck, cards = omws.Pops(oss.Deck, idxs)
@@ -80,7 +80,7 @@ func (oss OneSideState) Search(idxs []int, r *rand.Rand) OneSideState {
 	return oss
 }
 
-//墓地から手札に加える
+// 墓地から手札に加える
 func (oss OneSideState) Salvage(idxs []int) OneSideState {
 	var cards Cards
 	oss.Hand, cards = omws.Pops(oss.Graveyard, idxs)
@@ -104,16 +104,16 @@ const (
 )
 
 type State struct {
-	P1            OneSideState
-	P2            OneSideState
-	IsP1Turn      bool
-	IsP1Priority  bool
-	Phase         Phase
-	Chain         Chain
+	P1           OneSideState
+	P2           OneSideState
+	IsP1Turn     bool
+	IsP1Priority bool
+	Phase        Phase
+	Chain        Chain
 
-	SelectCards Cards
+	SelectCards              Cards
 	EffectProcessingCardName CardName
-	EffectProcessingNumber int
+	EffectProcessingNumber   int
 
 	//一時休戦
 	OneDayOfPeace bool
@@ -143,7 +143,7 @@ func (state *State) CanSpellSpeed1Activation() bool {
 	return state.IsMainPhase() && len(state.Chain) == 0
 }
 
-func(state State) Print() {
+func (state State) Print() {
 	fmt.Println(state.P2.Hand.Names())
 	fmt.Println(state.P2.SpellTrapZone.Names())
 	fmt.Println(state.P2.MonsterZone.Names())

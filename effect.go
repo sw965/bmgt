@@ -2,15 +2,15 @@ package bmgt
 
 import (
 	"github.com/sw965/omw/fn"
-	"math/rand"
-	omws "github.com/sw965/omw/slices"
 	omwrand "github.com/sw965/omw/rand"
+	omws "github.com/sw965/omw/slices"
 	"golang.org/x/exp/slices"
+	"math/rand"
 )
 
 type Effect func(*Action, *Card, *rand.Rand) []StateTransition
 
-//王立魔法図書館
+// 王立魔法図書館
 func RoyalMagicalLibraryEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
 	effect0 := fn.IdentityWithNilError[State]
 	effect1 := func(state State) (State, error) {
@@ -21,7 +21,7 @@ func RoyalMagicalLibraryEffect(action *Action, card *Card, r *rand.Rand) []State
 	return []StateTransition{effect0, effect1}
 }
 
-//サンダー・ドラゴン
+// サンダー・ドラゴン
 func ThunderDragonEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
 	effect0 := func(state State) (State, error) {
 		state.P1 = state.P1.Search(action.DeckIndices, r)
@@ -30,7 +30,7 @@ func ThunderDragonEffect(action *Action, card *Card, r *rand.Rand) []StateTransi
 	return []StateTransition{effect0}
 }
 
-//召喚僧サモンプリースト
+// 召喚僧サモンプリースト
 func SummonerMonkEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
 	effect0 := func(state State) (State, error) {
 		idx := slices.IndexFunc(state.P1.MonsterZone, EqualIDCard(card.ID))
@@ -49,7 +49,7 @@ func SummonerMonkEffect(action *Action, card *Card, r *rand.Rand) []StateTransit
 	return []StateTransition{effect0, effect1, effect2}
 }
 
-//一時休戦
+// 一時休戦
 func OneDayOfPeaceEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
 	effect0 := func(state State) (State, error) {
 		var err error
@@ -64,7 +64,7 @@ func OneDayOfPeaceEffect(action *Action, card *Card, r *rand.Rand) []StateTransi
 	return []StateTransition{effect0}
 }
 
-//打ち出の小槌
+// 打ち出の小槌
 func MagicalMalletEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
 	effect0 := func(state State) (State, error) {
 		var cards Cards
@@ -79,10 +79,24 @@ func MagicalMalletEffect(action *Action, card *Card, r *rand.Rand) []StateTransi
 	return []StateTransition{effect0}
 }
 
+// 闇の量産工場
+func DarkFactoryOfMassProductionnEffect(action *Action, card *Card, r *rand.Rand) []StateTransition {
+	effect0 := func(state State) (State, error) {
+		f := func(c Card) bool {
+			return slices.Contains(card.TargetIDs, c.ID)
+		}
+		indices := omws.IndicesFunc(state.P1.Graveyard, f)
+		state.P1 = state.P1.Salvage(indices)
+		return state, nil
+	}
+	return []StateTransition{effect0}
+}
+
 var EFFECT = map[CardName]Effect{
-	"王立魔法図書館":RoyalMagicalLibraryEffect,
+	"王立魔法図書館":     RoyalMagicalLibraryEffect,
 	"サンダー・ドラゴン":   ThunderDragonEffect,
 	"召喚僧サモンプリースト": SummonerMonkEffect,
 	"一時休戦":        OneDayOfPeaceEffect,
 	"打ち出の小槌":      MagicalMalletEffect,
+	"闇の量産工場":      DarkFactoryOfMassProductionnEffect,
 }

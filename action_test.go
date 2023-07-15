@@ -1,10 +1,10 @@
 package bmgt
 
 import (
-	"testing"
-	omwrand "github.com/sw965/omw/rand"
 	"fmt"
+	omwrand "github.com/sw965/omw/rand"
 	"golang.org/x/exp/slices"
+	"testing"
 )
 
 func TestLegalActions(t *testing.T) {
@@ -23,22 +23,15 @@ func TestLegalActions(t *testing.T) {
 	}
 	state.Print()
 
-	for _, action := range NewThunderDragonCostLegalActionss(&state) {
+	for _, action := range CostActionss.ThunderDragon(&state) {
 		fmt.Println(action)
 	}
 
-	for _, action := range NewRoyalMagicalLibraryCostLegalActionss(&state) {
+	for _, action := range CostActionss.RoyalMagicalLibrary(&state) {
 		fmt.Println(action)
 	}
 
-	for _, action := range NewSummonerMonkCostLegalActionss(&state) {
+	for _, action := range CostActionss.SummonerMonk(&state) {
 		fmt.Println(action)
 	}
-
-	actions := NewThunderDragonEffectLegalActionss(&state)[0]
-	state1, err := EFFECT[actions[0].CardName](&actions[0], &Card{}, r)[actions[0].EffectNumber](state)
-	if err != nil {
-		panic(err)
-	}
-	state1.Print()
 }
