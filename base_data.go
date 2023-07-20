@@ -115,8 +115,8 @@ type CardBaseData struct {
 	IsContinuousTrap bool
 	IsCounterTrap    bool
 
+	EffectNum int
 	MaxSpellCounter int
-	EffectTypes     EffectTypes
 }
 
 func (data *CardBaseData) IsMonster() bool {

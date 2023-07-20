@@ -6,6 +6,7 @@ import (
 	omwrand "github.com/sw965/omw/rand"
 	omws "github.com/sw965/omw/slices"
 	"math/rand"
+	"golang.org/x/exp/slices"
 )
 
 type LifePoint int
@@ -31,7 +32,7 @@ type OneSideState struct {
 	CurrentTurnNormalSummonUpperLimit int
 	CurrentTurnNormalSummonNum        int
 	IsDeclareAnAttack                 bool
-	OncePerTurn                       CardNames
+	OncePerTurnLimitCardNames CardNames
 }
 
 func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, error) {
@@ -88,8 +89,10 @@ func (oss OneSideState) Salvage(idxs []int) OneSideState {
 	return oss
 }
 
-func (oss *OneSideState) CanNormalSummon() bool {
-	return oss.CurrentTurnNormalSummonNum < oss.CurrentTurnNormalSummonUpperLimit
+func (oss *OneSideState) IsWin() bool {
+	f := func(name CardName) bool { return slices.Contains(oss.Hand.Names(), name) }
+	exodia := omws.All(fn.Map[[]bool](EXODIA_PART_NAMES, f))
+	return oss.LifePoint <= 0 && exodia
 }
 
 type Phase string
@@ -109,11 +112,6 @@ type State struct {
 	IsP1Turn     bool
 	IsP1Priority bool
 	Phase        Phase
-	Chain        Chain
-
-	SelectCards              Cards
-	EffectProcessingCardName CardName
-	EffectProcessingNumber   int
 
 	//一時休戦
 	OneDayOfPeace bool
@@ -135,12 +133,70 @@ func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) (State, error) {
 	return state, err
 }
 
+func (state *State) LegalActions() Actions {
+	result := make(Actions, 0, 128)
+
+	if state.Phase == DRAW_PHASE {
+		for handI, card := range  state.P1.Hand {
+			activatable, ok := HAND_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]
+			if ok && activatable(state){
+				result = append(result, NewHandCardActivationActions(card.Name, state, handI)...)
+			}
+		}
+	}
+
+	if state.IsMainPhase() {
+		for handI, card := range state.P1.Hand {
+			if IsLowLevelMonsterCard(card) {
+				actions := NewNormalSummonActions(card.Name, state, handI)
+				result = append(result, actions...)
+			} else if IsMediumLevelMonsterCard(card) {
+				actions := NewTributeSummonActions(card.Name, state, handI, 1)
+				result = append(result, actions...)
+			} else if IsHighLevelMonsterCard(card) {
+				actions := NewTributeSummonActions(card.Name, state, handI, 2)
+				result = append(result, actions...)
+			} else if IsSpellCard(card) || IsTrapCard(card) {
+				activatable, ok := HAND_CARD_ACTIVATABLE[card.Name]
+				if ok && activatable(state) {
+					result = append(result, NewHandCardActivationActions(card.Name, state, handI)...)
+				}
+				actions := NewHandSpellTrapSetActions(card.Name, state, handI)
+				result = append(result, actions...)
+			}
+
+			if card.Name == "サンダー・ドラゴン" {
+				if slices.ContainsFunc(state.P1.Deck, EqualNameCard(card.Name)) {
+					action := Action{
+						CardName:card.Name,
+						HandIndices:[]int{handI},
+						EffectNumber:0,
+						IsCost:true,
+					}
+					result = append(result, action)
+				} 
+			}
+		}
+	}
+	return result
+}
+
 func (state *State) IsMainPhase() bool {
 	return state.Phase == MAIN1_PHASE || state.Phase == MAIN2_PHASE
 }
 
-func (state *State) CanSpellSpeed1Activation() bool {
-	return state.IsMainPhase() && len(state.Chain) == 0
+func (state *State) Winner() Winner {
+	isP1Win := state.P1.IsWin()
+	isP2Win := state.P2.IsWin()
+	if isP1Win && isP2Win {
+		return DRAW
+	}
+
+	if isP1Win {
+		return WINNER_P1
+	} else {
+		return WINNER_P2
+	}
 }
 
 func (state State) Print() {
@@ -151,5 +207,13 @@ func (state State) Print() {
 	fmt.Println(state.P1.SpellTrapZone.Names())
 	fmt.Println(state.P1.Hand.Names())
 }
+
+type Winner int
+
+const (
+	WINNER_P1 = 0
+	WINNER_P2 = 1
+	DRAW = 2
+)
 
 type StateTransition func(State) (State, error)

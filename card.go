@@ -17,6 +17,10 @@ const (
 	FACE_DOWN_DEFENSE_POSITION = BattlePosition("裏側守備表示")
 )
 
+func (bp BattlePosition) IsFaceUp() bool {
+	return bp == ATTACK_POSITION || bp == FACE_UP_DEFENSE_POSITION
+}
+
 type CardID int
 
 type Card struct {
@@ -45,7 +49,10 @@ func IsNotEmptyCard(card Card) bool {
 }
 
 func CloneCard(card Card) Card {
-	card.ThisTurnEffectActivationCounts = slices.Clone(card.ThisTurnEffectActivationCounts)
+	counts := fn.Map[[]int](card.ThisTurnEffectActivationCounts, fn.Identity[int])
+	targetIDs := fn.Map[[]CardID](card.TargetIDs, fn.Identity[CardID])
+	card.ThisTurnEffectActivationCounts = counts
+	card.TargetIDs = targetIDs
 	return card
 }
 
@@ -64,6 +71,11 @@ func EqualIDCard(id CardID) func(Card) bool {
 func IsSpellSpeed2Card(card Card) bool {
 	data := CARD_DATA_BASE[card.Name]
 	return data.IsQuickPlaySpell || data.IsTrap()
+}
+
+func IsNormalMonsterCard(card Card) bool {
+	data := CARD_DATA_BASE[card.Name]
+	return data.IsNormalMonster
 }
 
 func IsMonsterCard(card Card) bool {
@@ -98,7 +110,7 @@ func IsSpiritMonsterCard(card Card) bool {
 
 func IsSpellCard(card Card) bool {
 	data := CARD_DATA_BASE[card.Name]
-	return data.IsTrap()
+	return data.IsSpell()
 }
 
 func IsTrapCard(card Card) bool {
@@ -192,7 +204,7 @@ func NewCards(names ...CardName) (Cards, error) {
 				msg := fmt.Sprintf("データベースに存在しないカード名が入力された。入力されたカード名 = %v", name)
 				return Cards{}, fmt.Errorf(msg)
 			}
-			card = Card{Name: name, ThisTurnEffectActivationCounts: make([]int, len(data.EffectTypes))}
+			card = Card{Name: name, ThisTurnEffectActivationCounts: make([]int, data.EffectNum)}
 		}
 		result[i] = card
 	}
@@ -222,4 +234,14 @@ func (cards Cards) Draw(num int) (Cards, Cards, error) {
 
 func (cards Cards) Clone() Cards {
 	return fn.Map[Cards, Cards](cards, CloneCard)
+}
+
+func (cards Cards) EmptyIndices() []int {
+	return omws.IndicesFunc(cards, IsEmptyCard)
+}
+
+type CardPlace struct {
+	HandIndex int
+	MonsterZoneIndex int
+	SpellTrapZoneIndex int
 }
