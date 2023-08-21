@@ -4,25 +4,8 @@ import (
 	"fmt"
 	"github.com/sw965/omw/json"
 	osmw "github.com/sw965/omw/os"
-	"golang.org/x/exp/slices"
 	"strings"
 )
-
-type CardName string
-
-const (
-	TOON = "トゥーン"
-)
-
-type CardNames []CardName
-
-var EXODIA_PART_NAMES = CardNames{
-	"封印されしエクゾディア",
-	"封印されし者の左腕",
-	"封印されし者の右腕",
-	"封印されし者の左足",
-	"封印されし者の右足",
-}
 
 type Level int
 type Levels []Level
@@ -30,69 +13,139 @@ type Levels []Level
 var LOW_LEVELS = Levels{1, 2, 3, 4}
 var MEDIUM_LEVELS = Levels{5, 6}
 
-type Attribute string
+type Attribute int
 
 const (
-	DARK  = Attribute("闇")
-	LIGHT = Attribute("光")
-	EARTH = Attribute("地")
-	WATER = Attribute("水")
-	FIRE  = Attribute("炎")
-	WIND  = Attribute("風")
+	DARK Attribute = iota
+	LIGHT
+	EARTH
+	WATER
+	FIRE
+	WIND
 )
+
+var STRING_TO_ATTRIBUTE = map[string]Attribute{
+	"闇":DARK,
+	"光":LIGHT,
+	"地":EARTH,
+	"水":WATER,
+	"炎":FIRE,
+	"風":WIND,
+}
 
 type Attributes []Attribute
 
 var ATTRIBUTES = Attributes{DARK, LIGHT, EARTH, WATER, FIRE, WIND}
 
-type Type string
+type Type int
 
 const (
-	DRAGON        = "ドラゴン"
-	SPELLCASTER   = "魔法使い"
-	ZOMBLE        = "ゾンビ"
-	WARRIOR       = "戦士"
-	BEAST_WARRIOR = "獣戦士"
-	BEAST         = "獣"
-	WINGED_BEAST  = "鳥獣"
-	FIEND         = "悪魔"
-	FAIRY         = "天使"
-	INSECT        = "昆虫"
-	DINOSAUR      = "恐竜"
-	REPTILE       = "爬虫類"
-	FISH          = "魚"
-	SEA_SERPENT   = "海竜"
-	MACHINE       = "機械"
-	THUNDER       = "雷"
-	AQUA          = "水"
-	PYRO          = "炎"
-	ROCK          = "岩石"
-	PLANT         = "植物"
-	PSYCHIC       = "サイキック"
-	WYRM          = "幻竜"
-	CYBERSE       = "サイバース"
-	DIVINE_BEAST  = "幻神獣"
+	DRAGON Type = iota
+	SPELLCASTER
+	ZOMBLE
+	WARRIOR
+	BEAST_WARRIOR
+	BEAST
+	WINGED_BEAST
+	FIEND
+	FAIRY
+	INSECT
+	DINOSAUR
+	REPTILE
+	FISH
+	SEA_SERPENT
+	MACHINE
+	THUNDER
+	AQUA
+	PYRO
+	ROCK
+	PLANT
+	PSYCHIC
+	WYRM
+	CYBERSE
+	DIVINE_BEAST
 )
+
+var STRING_TO_TYPE = map[string]Type{
+	"ドラゴン":DRAGON,
+	"魔法使い":SPELLCASTER,
+	"ゾンビ":ZOMBLE,
+	"戦士":WARRIOR,
+	"獣戦士":BEAST_WARRIOR,
+	"獣":BEAST,
+	"鳥獣":WINGED_BEAST,
+	"悪魔":FIEND,
+	"天使":FAIRY,
+	"恐竜":DINOSAUR,
+	"爬虫類":REPTILE,
+	"魚":FISH,
+	"海竜":SEA_SERPENT,
+	"機械":MACHINE,
+	"雷":THUNDER,
+	"水":AQUA,
+	"炎":PYRO,
+	"岩石":ROCK,
+	"植物":PLANT,
+	"サイキック":PSYCHIC,
+	"幻神獣":DIVINE_BEAST,
+}
 
 type Types []Type
 
-var TYPES = Types{
-	DRAGON, SPELLCASTER, ZOMBLE, WARRIOR, BEAST_WARRIOR,
-	BEAST, WINGED_BEAST, FIEND, FAIRY, INSECT,
-	DINOSAUR, REPTILE, FISH, SEA_SERPENT, MACHINE,
-	THUNDER, AQUA, PYRO, ROCK, PLANT,
-	PSYCHIC, WYRM, CYBERSE, DIVINE_BEAST,
-}
-
-type EffectType string
+type Category int
 
 const (
-	IGNITION_EFFECT   = "起動効果"
-	TRIGGER_EFFECT    = "誘発効果"
-	CONTINUOUS_EFFECT = "永続効果"
+	NORMAL_MONSTER Category = iota
+	EFFECT_MONSTER
+	SPIRIT_MONSTER
+
+	NORMAL_SPELL
+	QUICK_PLAY_SPELL
+	CONTINUOUS_SPELL
+
+	NORMAL_TRAP
+	CONTINUOUS_TRAP
+	COUNTER_TRAP
 )
 
-type EffectTypes []EffectType
+func (c Category) IsMonster() bool {
+	return c == NORMAL_MONSTER || c == EFFECT_MONSTER || c == SPIRIT_MONSTER
+}
+
+func (c Category) IsSpell() bool {
+	return c == NORMAL_SPELL || c == QUICK_PLAY_SPELL || c == CONTINUOUS_SPELL
+}
+
+func (c Category) IsTrap() bool {
+	return c == NORMAL_TRAP || c == CONTINUOUS_TRAP || c == COUNTER_TRAP
+}
+
+var STRING_TO_CATEGORY = map[string]Category{
+	"通常モンスター":NORMAL_MONSTER,
+	"効果モンスター":EFFECT_MONSTER,
+	"スピリットモンスター":SPIRIT_MONSTER,
+
+	"通常魔法":NORMAL_SPELL,
+	"速攻魔法":QUICK_PLAY_SPELL,
+	"永続魔法":CONTINUOUS_SPELL,
+
+	"通常罠":NORMAL_TRAP,
+	"永続罠":CONTINUOUS_TRAP,
+	"カウンター罠":COUNTER_TRAP,
+}
+
+type cardBaseData struct {
+	Level Level
+	Atk int
+	Def int
+
+	Attribute string
+	Type string
+	Category string
+
+	EffectNum int
+	MaxSpellCounter int
+}
 
 type CardBaseData struct {
 	Level Level
@@ -101,58 +154,70 @@ type CardBaseData struct {
 
 	Attribute Attribute
 	Type      Type
-
-	IsNormalMonster bool
-	IsEffectMonster bool
-	IsSpiritMonster bool
-	CanNormalSummon bool
-
-	IsNormalSpell     bool
-	IsQuickPlaySpell  bool
-	IsContinuousSpell bool
-
-	IsNormalTrap     bool
-	IsContinuousTrap bool
-	IsCounterTrap    bool
+	Category Category
 
 	EffectNum int
 	MaxSpellCounter int
 }
 
-func (data *CardBaseData) IsMonster() bool {
-	return data.IsNormalMonster || data.IsEffectMonster || data.IsSpiritMonster
-}
+func LoadCardDataBase(path string) (CardBaseData, error) {
+	data, err := json.Load[cardBaseData](path)
+	if err != nil {
+		return CardBaseData{}, err
+	}
 
-func (data *CardBaseData) IsSpell() bool {
-	return data.IsNormalSpell || data.IsQuickPlaySpell || data.IsContinuousSpell
-}
+	category, ok := STRING_TO_CATEGORY[data.Category]
+	if !ok {
+		msg := fmt.Sprintf("不適な分類 %v", path)
+		return CardBaseData{}, fmt.Errorf(msg)
+	}
 
-func (data *CardBaseData) IsTrap() bool {
-	return data.IsNormalTrap || data.IsContinuousTrap || data.IsCounterTrap
+	isMonster := category.IsMonster()
+
+	attribute, ok := STRING_TO_ATTRIBUTE[data.Attribute]
+	if !ok && isMonster {
+		return CardBaseData{}, fmt.Errorf("不適な属性")
+	}
+
+	t, ok := STRING_TO_TYPE[data.Type]
+	if !ok && isMonster {
+		return CardBaseData{}, fmt.Errorf("不適な種族")
+	}
+
+	y := CardBaseData{
+		Level:data.Level,
+		Atk:data.Atk,
+		Def:data.Def,
+		Attribute:attribute,
+		Type:t,
+		Category:category,
+		EffectNum:data.EffectNum,
+		MaxSpellCounter:data.MaxSpellCounter,
+	}
+	return y, nil
 }
 
 type CardDatabase map[CardName]*CardBaseData
 
 var CARD_DATA_BASE = func() CardDatabase {
-	result := CardDatabase{}
+	y := CardDatabase{}
 
 	add := func(path string) {
 		dirEntries, err := osmw.NewDirEntries(path)
 		if err != nil {
 			panic(err)
 		}
-
 		dirNames := dirEntries.Names()
 		for _, dirName := range dirNames {
 			if dirName == "テンプレート.json" {
 				continue
 			}
-			cardName := CardName(strings.TrimRight(dirName, ".json"))
-			data, err := json.Load[CardBaseData](path + dirName)
+			name := strings.TrimRight(dirName, ".json")
+			data, err := LoadCardDataBase(path + dirName)
 			if err != nil {
 				panic(err)
 			}
-			result[cardName] = &data
+			y[STRING_TO_CARD_NAME[name]] = &data
 		}
 	}
 
@@ -160,33 +225,14 @@ var CARD_DATA_BASE = func() CardDatabase {
 	add(SPELL_PATH)
 	add(TRAP_PATH)
 
-	return result
+	return y
 }()
 
 func init() {
 	for name, data := range CARD_DATA_BASE {
-		isMonster := data.IsMonster()
-		isSpell := data.IsSpell()
-		isTrap := data.IsTrap()
-
-		if data.IsSpiritMonster && !data.IsEffectMonster {
-			fmt.Println(name, "スピリットモンスターであるのに、効果モンスターではない (スピリットモンスターは、同時に効果モンスターでなければならない)")
-		}
-
-		if !isMonster && !isSpell && !isTrap {
-			fmt.Println(name, "モンスター/魔法/罠 のどれでもない")
-		}
-
-		if !slices.Contains(ATTRIBUTES, data.Attribute) && isMonster {
-			fmt.Println(name, data.Attribute)
-		}
-
-		if !slices.Contains(TYPES, data.Type) && isMonster {
-			fmt.Println(name, data.Type)
-		}
+		if data.Category != NORMAL_MONSTER && data.EffectNum == 0 {
+			msg := fmt.Sprintf("通常モンスターではないのに、効果の数が0になっている。(%v)", CARD_NAME_TO_STRING[name])
+			fmt.Println(msg)
+		} 
 	}
 }
-
-const (
-	SAME_CARD_NAME_LIMIT = 3
-)

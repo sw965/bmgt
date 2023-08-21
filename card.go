@@ -2,30 +2,135 @@ package bmgt
 
 import (
 	"fmt"
-	"github.com/sw965/omw/fn"
-	omathw "github.com/sw965/omw/math"
 	omws "github.com/sw965/omw/slices"
-	"golang.org/x/exp/slices"
-	"strings"
+	"github.com/sw965/omw/fn"
 )
 
-type BattlePosition string
+type CardName int
 
 const (
-	ATTACK_POSITION            = BattlePosition("攻撃表示")
-	FACE_UP_DEFENSE_POSITION   = BattlePosition("表側守備表示")
-	FACE_DOWN_DEFENSE_POSITION = BattlePosition("裏側守備表示")
+	NO_NAME CardName = iota
+	ONE_DAY_OF_PEACE
+	MAGICAL_MALLET
+	ROYAL_MAGICAL_LIBRARY
+	SOLEMN_JUDGMENT
+	JAR_OF_GREED
+	POT_OF_GREED
+	SUMMONER_MONK
+	THUNDER_DRAGON
+	GATHER_YOUR_MIND
+	HAND_DESTRUCTION
+	DOUBLE_SUMMON
+	TOON_TABLE_OF_CONTENTS
+	TOON_WORLD
+	UPSTART_GOBLIN
+	EXODIA_THE_FORBIDDEN_ONE
+	LEFT_LEG_OF_THE_FORBIDDEN_ONE
+	LEFT_ARM_OF_THE_FORBIDDEN_ONE
+	RIGHT_LEG_OF_THE_FORBIDDEN_ONE
+	RIGHT_ARM_OF_THE_FORBIDDEN_ONE
+	MAGICAL_STONE_EXCAVATION
+	ALLURE_OF_DARKNESS
+	DARK_FACTORY_OF_MASS_PRODUCTION
+	LEGACY_OF_YATA_GARASU
 )
 
-func (bp BattlePosition) IsFaceUp() bool {
-	return bp == ATTACK_POSITION || bp == FACE_UP_DEFENSE_POSITION
+var STRING_TO_CARD_NAME = map[string]CardName{
+	"一時休戦":ONE_DAY_OF_PEACE,
+	"打ち出の小槌":MAGICAL_MALLET,
+	"王立魔法図書館":ROYAL_MAGICAL_LIBRARY,
+	"強欲な瓶":JAR_OF_GREED,
+	"召喚僧サモンプリースト":SUMMONER_MONK,
+	"サンダー・ドラゴン":THUNDER_DRAGON,
+	"精神統一":GATHER_YOUR_MIND,
+	"手札断殺":HAND_DESTRUCTION,
+	"二重召喚":DOUBLE_SUMMON,
+	"トゥーンのもくじ":TOON_TABLE_OF_CONTENTS,
+	"トゥーン・ワールド":TOON_WORLD,
+	"成金ゴブリン":UPSTART_GOBLIN,
+	"封印されしエクゾディア":EXODIA_THE_FORBIDDEN_ONE,
+	"封印されし者の左足":LEFT_LEG_OF_THE_FORBIDDEN_ONE,
+	"封印されし者の左腕":LEFT_ARM_OF_THE_FORBIDDEN_ONE,
+	"封印されし者の右足":RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
+	"封印されし者の右腕":RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
+	"魔法石の採掘":MAGICAL_STONE_EXCAVATION,
+	"闇の誘惑":ALLURE_OF_DARKNESS,
+	"闇の量産工場":DARK_FACTORY_OF_MASS_PRODUCTION,
+	"八汰烏の骸":LEGACY_OF_YATA_GARASU,
 }
 
+var CARD_NAME_TO_STRING = func() map[CardName]string {
+	y := map[CardName]string{}
+	for k, v := range STRING_TO_CARD_NAME {
+		y[v] = k
+	}
+	return y
+}()
+
+type CardNames []CardName
+
+var NORMAL_MONSTER_NAMES = func() CardNames {
+	y := make(CardNames, 0, 128)
+	for name, data := range CARD_DATA_BASE {
+		if data.Category == NORMAL_MONSTER {
+			y = append(y, name)
+		}
+	}
+	return y
+}()
+
+var SPELL_CARD_NAMES = func() CardNames {
+	y := make(CardNames, 0, 128)
+	for name, data := range CARD_DATA_BASE {
+		if data.Category.IsSpell() {
+			y = append(y, name)			
+		}
+	}
+	return y
+}()
+
+var EXODIA_PART_NAMES = CardNames{
+	EXODIA_THE_FORBIDDEN_ONE,
+	LEFT_ARM_OF_THE_FORBIDDEN_ONE,
+	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
+	LEFT_LEG_OF_THE_FORBIDDEN_ONE,
+	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
+}
+
+var TOON_CARD_NAMES = CardNames{
+	TOON_TABLE_OF_CONTENTS,
+	TOON_WORLD,
+}
+
+func (names CardNames) ToStrings() ([]string, error) {
+	f := func(name CardName) (string, error) {
+		if y, ok := CARD_NAME_TO_STRING[name]; !ok {
+			return "", fmt.Errorf("不適な名前")
+		} else {
+			return y, nil
+		}
+	}
+	return fn.MapError[[]string](names, f)
+}
+
+type BattlePosition int
+
+const (
+	ATTACK_POSITION BattlePosition = iota
+	FACE_UP_DEFENSE_POSITION
+	FACE_DOWN_DEFENSE_POSITION
+)
+
 type CardID int
+type CardIDs []CardID
 
 type Card struct {
 	Name           CardName
+	Category Category
+
+	Level Level
 	BattlePosition BattlePosition
+	Attribute Attribute
 
 	IsSet     bool
 	IsSetTurn bool
@@ -35,176 +140,99 @@ type Card struct {
 	SpellCounter                   int
 
 	ID        CardID
-	TargetIDs []CardID
 }
 
 var EMPTY_CARD = Card{}
 
-func IsEmptyCard(card Card) bool {
-	return card.Name == ""
+func IsDarkMonster(card Card) bool {
+	return card.Attribute == DARK
 }
 
-func IsNotEmptyCard(card Card) bool {
-	return card.Name != ""
-}
-
-func CloneCard(card Card) Card {
-	counts := fn.Map[[]int](card.ThisTurnEffectActivationCounts, fn.Identity[int])
-	targetIDs := fn.Map[[]CardID](card.TargetIDs, fn.Identity[CardID])
+func (card Card) Clone() Card {
+	counts := make([]int, len(card.ThisTurnEffectActivationCounts))
+	for i, c := range card.ThisTurnEffectActivationCounts {
+		counts[i] = c
+	}
 	card.ThisTurnEffectActivationCounts = counts
-	card.TargetIDs = targetIDs
 	return card
-}
-
-func EqualNameCard(name CardName) func(Card) bool {
-	return func(card Card) bool {
-		return card.Name == name
-	}
-}
-
-func EqualIDCard(id CardID) func(Card) bool {
-	return func(card Card) bool {
-		return card.ID == id
-	}
-}
-
-func IsSpellSpeed2Card(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsQuickPlaySpell || data.IsTrap()
-}
-
-func IsNormalMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsNormalMonster
-}
-
-func IsMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsMonster()
-}
-
-func IsLowLevelMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return slices.Contains(LOW_LEVELS, data.Level)
-}
-
-func IsLevel4MonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.Level == 4
-}
-
-func IsMediumLevelMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return slices.Contains(MEDIUM_LEVELS, data.Level)
-}
-
-func IsHighLevelMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.Level > omathw.Max(MEDIUM_LEVELS...)
-}
-
-func IsSpiritMonsterCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsSpiritMonster
-}
-
-func IsSpellCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsSpell()
-}
-
-func IsTrapCard(card Card) bool {
-	data := CARD_DATA_BASE[card.Name]
-	return data.IsTrap()
-}
-
-func IsToonCard(card Card) bool {
-	return strings.Contains(string(card.Name), string(TOON))
-}
-
-func CanPutSpellCounter(card Card) bool {
-	return card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter
-}
-
-// 王立魔法図書館
-func PlaceRoyalMagicalLibrarySpellCounter(card Card) Card {
-	if card.Name == "王立魔法図書館" {
-		if card.SpellCounter < CARD_DATA_BASE[card.Name].MaxSpellCounter {
-			card.SpellCounter += 1
-		}
-		return card
-	} else {
-		return card
-	}
 }
 
 type Cards []Card
 
 var OLD_LIBRARY_EXODIA_DECK = func() Cards {
-	result, err := NewCards(
-		"封印されしエクゾディア",
-		"封印されし者の左腕",
-		"封印されし者の右腕",
-		"封印されし者の左足",
-		"封印されし者の右足",
-		"王立魔法図書館",
-		"王立魔法図書館",
-		"王立魔法図書館",
-		"召喚僧サモンプリースト",
-		"召喚僧サモンプリースト",
-		"サンダー・ドラゴン",
-		"サンダー・ドラゴン",
-		"サンダー・ドラゴン",
+	y, err := NewCards(
+		EXODIA_THE_FORBIDDEN_ONE,
+		LEFT_ARM_OF_THE_FORBIDDEN_ONE,
+		RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
+		LEFT_LEG_OF_THE_FORBIDDEN_ONE,
+		RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
 
-		"一時休戦",
-		"成金ゴブリン",
-		"成金ゴブリン",
-		"成金ゴブリン",
-		"トゥーンのもくじ",
-		"トゥーンのもくじ",
-		"トゥーンのもくじ",
-		"トゥーン・ワールド",
-		"精神統一",
-		"精神統一",
-		"精神統一",
-		"手札断殺",
-		"手札断殺",
-		"手札断殺",
-		"打ち出の小槌",
-		"打ち出の小槌",
-		"打ち出の小槌",
-		"闇の誘惑",
-		"二重召喚",
-		"魔法石の採掘",
-		"闇の量産工場",
+		ROYAL_MAGICAL_LIBRARY,
+		ROYAL_MAGICAL_LIBRARY,
+		ROYAL_MAGICAL_LIBRARY,
 
-		"強欲な瓶",
-		"強欲な瓶",
-		"強欲な瓶",
-		"八汰烏の骸",
-		"八汰烏の骸",
-		"八汰烏の骸",
+		SUMMONER_MONK,
+		SUMMONER_MONK,
+
+		THUNDER_DRAGON,
+		THUNDER_DRAGON,
+		THUNDER_DRAGON,
+
+		ONE_DAY_OF_PEACE,
+
+		UPSTART_GOBLIN,
+		UPSTART_GOBLIN,
+		UPSTART_GOBLIN,
+
+		TOON_TABLE_OF_CONTENTS,
+		TOON_TABLE_OF_CONTENTS,
+		TOON_TABLE_OF_CONTENTS,
+		TOON_WORLD,
+
+		GATHER_YOUR_MIND,
+		GATHER_YOUR_MIND,
+		GATHER_YOUR_MIND,
+
+		HAND_DESTRUCTION,
+		HAND_DESTRUCTION,
+		HAND_DESTRUCTION,
+
+		MAGICAL_MALLET,
+		MAGICAL_MALLET,
+		MAGICAL_MALLET,
+
+		ALLURE_OF_DARKNESS,
+		DOUBLE_SUMMON,
+		MAGICAL_STONE_EXCAVATION,
+		DARK_FACTORY_OF_MASS_PRODUCTION,
+
+		JAR_OF_GREED,
+		JAR_OF_GREED,
+		JAR_OF_GREED,
+
+		LEGACY_OF_YATA_GARASU,
+		LEGACY_OF_YATA_GARASU,
+		LEGACY_OF_YATA_GARASU,
 	)
 	if err != nil {
 		panic(err)
 	}
-	return result
+	return y
 }()
 
 func NewCards(names ...CardName) (Cards, error) {
 	result := make(Cards, len(names))
 	for i, name := range names {
 		var card Card
-		if name == "" {
-			cloneCard := CloneCard(EMPTY_CARD)
-			card = cloneCard
+		if name == NO_NAME {
+			card = EMPTY_CARD.Clone()
 		} else {
 			data, ok := CARD_DATA_BASE[name]
 			if !ok {
-				msg := fmt.Sprintf("データベースに存在しないカード名が入力された。入力されたカード名 = %v", name)
+				msg := fmt.Sprintf("データベースに存在しないカード名が入力された %v", name)
 				return Cards{}, fmt.Errorf(msg)
 			}
-			card = Card{Name: name, ThisTurnEffectActivationCounts: make([]int, data.EffectNum)}
+			card = Card{Name: name, Category:data.Category, Attribute:data.Attribute, Level:data.Level, ThisTurnEffectActivationCounts: make([]int, data.EffectNum)}
 		}
 		result[i] = card
 	}
@@ -212,36 +240,21 @@ func NewCards(names ...CardName) (Cards, error) {
 }
 
 func (cards Cards) Names() CardNames {
-	y := make(CardNames, len(cards))
+	result := make(CardNames, len(cards))
 	for i, card := range cards {
-		y[i] = card.Name
+		result[i] = card.Name
+ 	}
+	return result
+}
+
+func (cards Cards) IDs() CardIDs {
+	result := make(CardIDs, len(cards))
+	for i, card := range cards {
+		result[i] = card.ID
 	}
-	return y
+	return result
 }
 
-func (cards Cards) Draw(num int) (Cards, Cards, error) {
-	drawCards := make(Cards, num)
-	for i := 0; i < num; i++ {
-		if len(cards) == 0 {
-			return cards, drawCards, fmt.Errorf("ドローしようとしたが、カードがなかった")
-		}
-		var drawCard Card
-		cards, drawCard = omws.Pop(cards, 0)
-		drawCards[i] = drawCard
-	}
-	return cards, drawCards, nil
-}
-
-func (cards Cards) Clone() Cards {
-	return fn.Map[Cards, Cards](cards, CloneCard)
-}
-
-func (cards Cards) EmptyIndices() []int {
-	return omws.IndicesFunc(cards, IsEmptyCard)
-}
-
-type CardPlace struct {
-	HandIndex int
-	MonsterZoneIndex int
-	SpellTrapZoneIndex int
+func (cards Cards) IDSorted() Cards {
+	return omws.SortedFunc(cards, func(c1, c2 Card) bool { return c1.ID < c2.ID })
 }

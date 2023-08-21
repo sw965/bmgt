@@ -1,12 +1,18 @@
 package bmgt
 
 import (
-	"fmt"
-	"github.com/sw965/omw/fn"
-	omwrand "github.com/sw965/omw/rand"
-	omws "github.com/sw965/omw/slices"
 	"math/rand"
 	"golang.org/x/exp/slices"
+	omwrand "github.com/sw965/omw/rand"
+	omwslices "github.com/sw965/omw/slices"
+	"github.com/sw965/omw/fn"
+)
+
+const (
+	INIT_DRAW = 5
+	MAX_DECK_NUM = 60
+	MAX_EX_DECK = 15
+	GRAVEYARD_CAP = MAX_DECK_NUM + MAX_EX_DECK
 )
 
 type LifePoint int
@@ -27,25 +33,26 @@ type OneSideState struct {
 	MonsterZone   Cards
 	SpellTrapZone Cards
 	Graveyard     Cards
+	Banish Cards
 
-	IsPriorityWaiver                  bool
-	CurrentTurnNormalSummonUpperLimit int
-	CurrentTurnNormalSummonNum        int
-	IsDeclareAnAttack                 bool
+	IsTurn bool
+
 	OncePerTurnLimitCardNames CardNames
+	Actions Actions
 }
 
-func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, error) {
-	var hand Cards
-	var err error
+func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) OneSideState {
+	n := len(deck)
 
-	deck = fn.Map[Cards, Cards](deck, CloneCard)
-	for i := range deck {
-		deck[i].ID = startID + CardID(i)
+	setID := func(i int, card Card) Card {
+		card.ID = startID + CardID(i)
+		return card
 	}
 
+	deck = fn.MapIndex[Cards](deck, setID)
 	deck = omwrand.Shuffled(deck, r)
-	deck, hand, err = deck.Draw(5)
+	hand := deck[:INIT_DRAW]
+	deck = deck[INIT_DRAW:]
 
 	result := OneSideState{}
 	result.LifePoint = INIT_LIFE_POINT
@@ -53,167 +60,317 @@ func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) (OneSideState, er
 	result.Deck = deck
 	result.MonsterZone = make(Cards, MONSTER_ZONE_LENGTH)
 	result.SpellTrapZone = make(Cards, SPELL_TRAP_ZONE_LENGTH)
-	result.Graveyard = make(Cards, 0, len(deck))
-	return result, err
+	result.Graveyard = make(Cards, 0, n)
+	result.Banish = make(Cards, 0, n)
+	return result
 }
 
-func (oss OneSideState) Draw(num int) (OneSideState, error) {
-	deck, drawCards, err := oss.Deck.Draw(num)
-	oss.Deck = deck
-	oss.Hand = append(oss.Hand, drawCards...)
-	return oss, err
-}
-
-// 手札を捨てる
-func (oss OneSideState) Discard(idxs []int) OneSideState {
-	hand, gy := omws.Pops(oss.Hand, idxs)
+func (oss *OneSideState) Draw(num int) {
+	hand := make(Cards, 0, len(oss.Hand) + num)
+	hand = append(hand, oss.Hand...)
+	hand = append(hand, oss.Deck[:num]...)
 	oss.Hand = hand
-	oss.Graveyard = append(oss.Graveyard, gy...)
-	return oss
+	oss.Deck = oss.Deck[num:]
 }
 
-// デッキから手札に加える
-func (oss OneSideState) Search(idxs []int, r *rand.Rand) OneSideState {
-	var cards Cards
-	oss.Deck, cards = omws.Pops(oss.Deck, idxs)
-	oss.Hand = append(oss.Hand, cards...)
-	oss.Deck = omwrand.Shuffled(oss.Deck, r)
-	return oss
+//手札を墓地へ捨てる
+func (oss *OneSideState) Discard(idxs []int) {
+	hand := make(Cards, 0, len(oss.Hand) - len(idxs)) 
+	for i, card := range oss.Hand {
+		if slices.Contains(idxs, i) {
+			oss.Graveyard = append(oss.Graveyard, card)
+		} else {
+			hand = append(hand, card)
+		}
+	}
+	oss.Hand = hand
 }
 
-// 墓地から手札に加える
-func (oss OneSideState) Salvage(idxs []int) OneSideState {
-	var cards Cards
-	oss.Hand, cards = omws.Pops(oss.Graveyard, idxs)
-	oss.Hand = append(oss.Hand, cards...)
-	return oss
+//手札を除外ゾーンへ捨てる
+func (oss *OneSideState) DiscardBanish(idxs []int) {
+	hand := make(Cards, 0, len(oss.Hand) - len(idxs))
+	for i, card := range oss.Hand {
+		if slices.Contains(idxs, i) {
+			oss.Banish = append(oss.Banish, card)
+		} else {
+			hand = append(hand, card)
+		}
+	}
+	oss.Hand = hand
 }
 
-func (oss *OneSideState) IsWin() bool {
-	f := func(name CardName) bool { return slices.Contains(oss.Hand.Names(), name) }
-	exodia := omws.All(fn.Map[[]bool](EXODIA_PART_NAMES, f))
-	return oss.LifePoint <= 0 && exodia
+//デッキから手札へ
+func (oss *OneSideState) Search(idxs []int, r *rand.Rand) {
+	n := len(idxs)
+	hand := make(Cards, 0, len(oss.Hand) + n)
+	hand = append(hand, oss.Hand...)
+	deck := make(Cards, 0, len(oss.Deck) - n)
+
+	for i, card := range oss.Deck {
+		if slices.Contains(idxs, i) {
+			hand = append(hand, card)
+		} else {
+			deck = append(deck, card)
+		}
+	}
+
+	r.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
+	oss.Hand = hand
+	oss.Deck = deck
 }
 
-type Phase string
+//墓地から手札へ
+func (oss *OneSideState) IDSalvage(ids CardIDs) {
+	hand := make(Cards, 0, len(oss.Hand) + 1)
+	hand = append(hand, oss.Hand...)
+	gy := make(Cards, 0, GRAVEYARD_CAP - 1)
+	for _, card := range oss.Graveyard {
+		if slices.Contains(ids, card.ID) {
+			hand = append(hand, card)
+		} else {
+			gy = append(gy, card)
+		}
+	}
+	oss.Hand = hand
+	oss.Graveyard = gy
+}
+
+func (oss *OneSideState) HandToDeck(idxs []int, r *rand.Rand) {
+	n := len(idxs)
+	hand := make(Cards, 0, len(oss.Hand)-n)
+	deck := make(Cards, 0, len(oss.Deck)+n)
+	deck = append(deck, oss.Deck...)
+	for i, card := range oss.Hand {
+		if slices.Contains(idxs, i) {
+			deck = append(deck, card)
+		} else {
+			hand = append(hand, card)
+		}
+	}
+
+	r.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
+	oss.Hand = hand
+	oss.Deck = deck
+}
+
+func (oss *OneSideState) MonsterZoneToGraveyard(zoneIdxs []int) {
+	for i := 0; i < MONSTER_ZONE_LENGTH; i++ {
+		if slices.Contains(zoneIdxs, i) {
+			card := oss.MonsterZone[i]
+			oss.Graveyard = append(oss.Graveyard, card)
+			oss.MonsterZone[i] = Card{}
+		}
+	}
+}
+
+func (oss *OneSideState) HandToSpellTrapZone(handI, zoneI int) {
+	hand := make(Cards, 0, len(oss.Hand)-1)
+	for i, card := range oss.Hand {
+		if i == handI {
+			oss.SpellTrapZone[zoneI] = card
+		} else {
+			hand = append(hand, card)
+		}
+	}
+	oss.Hand = hand
+}
+
+type Phase int
 
 const (
-	DRAW_PHASE    = Phase("ドロー")
-	STANDBY_PHASE = Phase("スタンバイ")
-	MAIN1_PHASE   = Phase("メイン1")
-	BATTLE_PHASE  = Phase("バトル")
-	MAIN2_PHASE   = Phase("メイン2")
-	END_PHASE     = Phase("エンド")
+	DRAW_PHASE Phase = iota
+	STANDBY_PHASE
+	MAIN1_PHASE
+	BATTLE_PHASE
+	MAIN2_PHASE
+	END_PHASE
 )
+
+func (phase Phase) IsMainPhase() bool {
+	return phase == MAIN1_PHASE || phase == MAIN2_PHASE
+}
 
 type State struct {
 	P1           OneSideState
 	P2           OneSideState
-	IsP1Turn     bool
-	IsP1Priority bool
 	Phase        Phase
-
-	//一時休戦
-	OneDayOfPeace bool
+	Chain Chain
 }
 
-func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) (State, error) {
-	p1, err := NewOneSideState(p1Deck, r, 0)
-	if err != nil {
-		return State{}, err
-	}
-	p2, err := NewOneSideState(p2Deck, r, CardID(len(p1Deck)))
-	p1Deck = omwrand.Shuffled(p1Deck, r)
-	p2Deck = omwrand.Shuffled(p2Deck, r)
-
+func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) State {
+	p1 := NewOneSideState(p1Deck, r, 0)
+	p2 := NewOneSideState(p2Deck, r, CardID(len(p1Deck)))
+	p1.IsTurn = true
+	p2.IsTurn = false
 	state := State{P1: p1, P2: p2}
-	state.IsP1Turn = true
-	state.IsP1Priority = true
 	state.Phase = DRAW_PHASE
-	return state, err
+	state.Chain = make(Chain, 0, 16)
+	return state
 }
 
 func (state *State) LegalActions() Actions {
-	result := make(Actions, 0, 128)
-
-	if state.Phase == DRAW_PHASE {
-		for handI, card := range  state.P1.Hand {
-			activatable, ok := HAND_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]
-			if ok && activatable(state){
-				result = append(result, NewHandCardActivationActions(card.Name, state, handI)...)
-			}
+	if len(state.P1.Actions) != 0 {
+		p1LastAction := state.P1.Actions[len(state.P1.Actions)-1]
+		switch p1LastAction.CardName {
+			case THUNDER_DRAGON:
+				if p1LastAction.IsCardActivation {
+					return Actions{Action{CardName:THUNDER_DRAGON, IsCost:true}}
+				}
 		}
 	}
 
-	if state.IsMainPhase() {
+	y := make(Actions, 0, 128)
+
+	monsterZoneEmptyIndices := omwslices.IndicesFunc(state.P1.MonsterZone, func(card Card) bool { return card.Name == NO_NAME })
+	tributeSummonCostIndices := omwslices.IndicesFunc(
+		state.P1.MonsterZone,
+		func(card Card) bool {
+			return card.Name != NO_NAME && card.Name != SUMMONER_MONK
+		},
+	)
+	spellTrapZoneEmptyIndices := omwslices.IndicesFunc(state.P1.SpellTrapZone, func(card Card) bool { return card.Name == NO_NAME })
+
+	isSpellSpeed1Activatable := state.Phase.IsMainPhase() && len(state.Chain) == 0
+	isSpellSpeed2Activatable := len(state.Chain) == 0 || state.Chain[len(state.Chain)-1].Card.Category != COUNTER_TRAP
+
+	if isSpellSpeed1Activatable {
 		for handI, card := range state.P1.Hand {
-			if IsLowLevelMonsterCard(card) {
-				actions := NewNormalSummonActions(card.Name, state, handI)
-				result = append(result, actions...)
-			} else if IsMediumLevelMonsterCard(card) {
-				actions := NewTributeSummonActions(card.Name, state, handI, 1)
-				result = append(result, actions...)
-			} else if IsHighLevelMonsterCard(card) {
-				actions := NewTributeSummonActions(card.Name, state, handI, 2)
-				result = append(result, actions...)
-			} else if IsSpellCard(card) || IsTrapCard(card) {
-				activatable, ok := HAND_CARD_ACTIVATABLE[card.Name]
-				if ok && activatable(state) {
-					result = append(result, NewHandCardActivationActions(card.Name, state, handI)...)
+			if card.Category.IsMonster() {
+				if slices.Contains(LOW_LEVELS, card.Level) {
+					for _, empI := range monsterZoneEmptyIndices {
+						action := Action{
+							CardName:card.Name,
+							HandIndices:[]int{handI},
+							MonsterZoneIndices:[]int{empI},
+							IsNormalSummon:true,
+						}
+						y = append(y, action)
+					}
 				}
-				actions := NewHandSpellTrapSetActions(card.Name, state, handI)
-				result = append(result, actions...)
+	
+				var tributeCost int
+				if slices.Contains(MEDIUM_LEVELS, card.Level) {
+					tributeCost = 1
+				} else {
+					tributeCost = 2
+				}
+	
+				if tributeCost >= len(tributeSummonCostIndices) {
+					idxss := omwslices.Combination[[][]int, []int](tributeSummonCostIndices, tributeCost)
+					for _, idxs := range idxss {
+						action := Action{
+							CardName:card.Name,
+							MonsterZoneIndices:idxs,
+							IsNormalSummon:true,
+							IsTributeSummonCost:true,
+						}
+						y = append(y, action)
+					}
+				}
 			}
 
-			if card.Name == "サンダー・ドラゴン" {
-				if slices.ContainsFunc(state.P1.Deck, EqualNameCard(card.Name)) {
+			if f, ok := HAND_SPELL_SPEED1_MONSTER_ACTIVATABLE[card.Name]; ok {
+				if omwslices.Any(f(state, &card)) {
 					action := Action{
 						CardName:card.Name,
 						HandIndices:[]int{handI},
-						EffectNumber:0,
-						IsCost:true,
+						IsCardActivation:true,
 					}
-					result = append(result, action)
-				} 
+					y = append(y, action)
+				}
+			}
+
+			if f, ok := HAND_NORMAL_SPELL_ACTIVATABLE[card.Name]; ok {
+				if omwslices.Any(f(state, &card)) {
+					for _, zoneI := range spellTrapZoneEmptyIndices {
+						action := Action{
+							CardName:card.Name,
+							HandIndices:[]int{handI},
+							SpellTrapZoneIndices:[]int{zoneI},
+							IsCardActivation:true,
+						}
+						y = append(y, action)
+					}
+				}
+			}
+
+			if card.Category.IsSpell() || card.Category.IsTrap() {
+				for _, empI := range spellTrapZoneEmptyIndices {
+					action := Action{
+						HandIndices:[]int{handI},
+						SpellTrapZoneIndices:[]int{empI},
+						IsSpellTrapSet:true,
+					}
+					y = append(y, action)
+				}
+			}
+		}
+
+		for zoneI, card := range state.P1.SpellTrapZone {
+			if f, ok := ZONE_NORMAL_SPELL_ACTIVATABLE[card.Name]; ok {
+				if omwslices.Any(f(state, &card)) {
+					action := Action{
+						CardName:card.Name,
+						SpellTrapZoneIndices:[]int{zoneI},
+						IsCardActivation:true,
+					}
+					y = append(y, action)
+				}
 			}
 		}
 	}
-	return result
-}
 
-func (state *State) IsMainPhase() bool {
-	return state.Phase == MAIN1_PHASE || state.Phase == MAIN2_PHASE
-}
+	if isSpellSpeed2Activatable {
+		if state.P1.IsTurn {
+			for handI, card := range state.P1.Hand {
+				if f, ok := HAND_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]; ok {
+					if omwslices.Any(f(state, &card)) {
+						for _, zoneI := range spellTrapZoneEmptyIndices {
+							action := Action{
+								CardName:card.Name,
+								HandIndices:[]int{handI},
+								SpellTrapZoneIndices:[]int{zoneI},
+								IsCardActivation:true,
+							}
+							y = append(y, action)
+						}
+					}
+				}
+			}
+		}
 
-func (state *State) Winner() Winner {
-	isP1Win := state.P1.IsWin()
-	isP2Win := state.P2.IsWin()
-	if isP1Win && isP2Win {
-		return DRAW
+		for zoneI, card := range state.P1.SpellTrapZone {
+			if f, ok := ZONE_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]; ok {
+				if omwslices.Any(f(state, &card)) && !card.IsSetTurn {
+					action := Action{
+						CardName:card.Name,
+						SpellTrapZoneIndices:[]int{zoneI},
+						IsCardActivation:true,
+					}
+					y = append(y, action)
+				}
+			}
+
+			if f, ok := ZONE_NORMAL_TRAP_ACTIVATABLE[card.Name]; ok {
+				if omwslices.Any(f(state, &card)) && !card.IsSetTurn {
+					action := Action{
+						CardName:card.Name,
+						SpellTrapZoneIndices:[]int{zoneI},
+						IsCardActivation:true,
+					}
+					y = append(y, action)
+				}
+ 			}
+		}
 	}
+	return y
+}
 
-	if isP1Win {
-		return WINNER_P1
-	} else {
-		return WINNER_P2
+func (state State) Push(action *Action) State {
+	if action.IsNormalSummon {
+		if action.IsTributeSummonCost {
+			state.P1.MonsterZoneToGraveyard(action.MonsterZoneIndices)
+		}
 	}
+	return state
 }
-
-func (state State) Print() {
-	fmt.Println(state.P2.Hand.Names())
-	fmt.Println(state.P2.SpellTrapZone.Names())
-	fmt.Println(state.P2.MonsterZone.Names())
-	fmt.Println(state.P1.MonsterZone.Names())
-	fmt.Println(state.P1.SpellTrapZone.Names())
-	fmt.Println(state.P1.Hand.Names())
-}
-
-type Winner int
-
-const (
-	WINNER_P1 = 0
-	WINNER_P2 = 1
-	DRAW = 2
-)
-
-type StateTransition func(State) (State, error)
