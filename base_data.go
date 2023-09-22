@@ -12,6 +12,7 @@ type Levels []Level
 
 var LOW_LEVELS = Levels{1, 2, 3, 4}
 var MEDIUM_LEVELS = Levels{5, 6}
+const HIGH_LEVEL = 7
 
 type Attribute int
 
@@ -195,6 +196,15 @@ func LoadCardDataBase(path string) (CardBaseData, error) {
 		MaxSpellCounter:data.MaxSpellCounter,
 	}
 	return y, nil
+}
+
+func (d CardBaseData) ToCard() Card {
+	return Card{
+		Category:d.Category,
+		Attribute:d.Attribute,
+		Level:d.Level,
+		ThisTurnEffectActivationCounts: make([]int, d.EffectNum),
+	}
 }
 
 type CardDatabase map[CardName]*CardBaseData

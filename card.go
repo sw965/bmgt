@@ -1,9 +1,11 @@
 package bmgt
 
 import (
-	"fmt"
-	omws "github.com/sw965/omw/slices"
+	omwos "github.com/sw965/omw/os"
+	omwstrings "github.com/sw965/omw/strings"
 	"github.com/sw965/omw/fn"
+	"fmt"
+	"golang.org/x/exp/slices"
 )
 
 type CardName int
@@ -33,6 +35,7 @@ const (
 	ALLURE_OF_DARKNESS
 	DARK_FACTORY_OF_MASS_PRODUCTION
 	LEGACY_OF_YATA_GARASU
+	MACRO_COSMOS
 )
 
 var STRING_TO_CARD_NAME = map[string]CardName{
@@ -59,6 +62,10 @@ var STRING_TO_CARD_NAME = map[string]CardName{
 	"八汰烏の骸":LEGACY_OF_YATA_GARASU,
 }
 
+func StringToCardName(s string) CardName {
+	return STRING_TO_CARD_NAME[s]
+}
+
 var CARD_NAME_TO_STRING = func() map[CardName]string {
 	y := map[CardName]string{}
 	for k, v := range STRING_TO_CARD_NAME {
@@ -67,26 +74,41 @@ var CARD_NAME_TO_STRING = func() map[CardName]string {
 	return y
 }()
 
+type cardNameF struct{}
+var CardNameF = cardNameF{}
+
+func (f *cardNameF) IsMonster(name CardName) bool {
+	return CARD_DATA_BASE[name].Category.IsMonster()
+}
+
+func (f *cardNameF) IsNormalMonster(name CardName) bool {
+	return CARD_DATA_BASE[name].Category == NORMAL_MONSTER
+}
+
 type CardNames []CardName
 
-var NORMAL_MONSTER_NAMES = func() CardNames {
-	y := make(CardNames, 0, 128)
-	for name, data := range CARD_DATA_BASE {
-		if data.Category == NORMAL_MONSTER {
-			y = append(y, name)
-		}
+var MONSTER_NAMES = func() CardNames {
+	entries, err := omwos.NewDirEntries(MONSTER_PATH)
+	if err != nil {
+		panic(err)
 	}
-	return y
+	dirs := fn.Filter(entries.Names(), IsNotTemplateJsonName)
+	dirs = fn.Map[[]string](dirs, omwstrings.Replace(omwos.JSON_EXTENSION, "", 1))
+	return fn.Map[CardNames](dirs, StringToCardName)
+}()
+
+var NORMAL_MONSTER_NAMES = func() CardNames {
+	return fn.Filter(MONSTER_NAMES, CardNameF.IsNormalMonster)
 }()
 
 var SPELL_CARD_NAMES = func() CardNames {
-	y := make(CardNames, 0, 128)
-	for name, data := range CARD_DATA_BASE {
-		if data.Category.IsSpell() {
-			y = append(y, name)			
-		}
+	entries, err := omwos.NewDirEntries(SPELL_PATH)
+	if err != nil {
+		panic(err)
 	}
-	return y
+	dirs := fn.Filter(entries.Names(), IsNotTemplateJsonName)
+	dirs = fn.Map[[]string](dirs, omwstrings.Replace(omwos.JSON_EXTENSION, "", 1))
+	return fn.Map[CardNames](dirs, StringToCardName)
 }()
 
 var EXODIA_PART_NAMES = CardNames{
@@ -102,17 +124,6 @@ var TOON_CARD_NAMES = CardNames{
 	TOON_WORLD,
 }
 
-func (names CardNames) ToStrings() ([]string, error) {
-	f := func(name CardName) (string, error) {
-		if y, ok := CARD_NAME_TO_STRING[name]; !ok {
-			return "", fmt.Errorf("不適な名前")
-		} else {
-			return y, nil
-		}
-	}
-	return fn.MapError[[]string](names, f)
-}
-
 type BattlePosition int
 
 const (
@@ -120,6 +131,10 @@ const (
 	FACE_UP_DEFENSE_POSITION
 	FACE_DOWN_DEFENSE_POSITION
 )
+
+type BattlePositions []BattlePosition
+
+var NORMAL_SUMMON_BATTLE_POSITIONS = BattlePositions{ATTACK_POSITION, FACE_DOWN_DEFENSE_POSITION}
 
 type CardID int
 type CardIDs []CardID
@@ -136,31 +151,76 @@ type Card struct {
 	IsSetTurn bool
 
 	ThisTurnEffectActivationCounts []int
-	SelectEffectNumber             int
 	SpellCounter                   int
 
 	ID        CardID
 }
 
-var EMPTY_CARD = Card{}
+func NewCard(name CardName) (Card, error) {
+	if name == NO_NAME {
+		return Card{}, nil
+	} else {
+		data, ok := CARD_DATA_BASE[name]
+		if !ok {
+			msg := fmt.Sprintf("データベースに存在しないカード名が入力された %v", name)
+			return Card{}, fmt.Errorf(msg)
+		} else {
+			card := data.ToCard()
+			card.Name = name
+			return card, nil
+		}
+	}
+}
 
-func IsDarkMonster(card Card) bool {
+type cardF struct{}
+var CardF = cardF{}
+
+func (f *cardF) IsEmpty(card Card) bool {
+	return card.Name == NO_NAME
+}
+
+func (f *cardF) IsNotEmpty(card Card) bool {
+	return !f.IsEmpty(card)
+}
+
+func (f *cardF) GetName(card Card) CardName {
+	return card.Name
+}
+
+func (f *cardF) SetID(id CardID, card Card) Card {
+	card.ID = id
+	return card
+}
+
+func (f *cardF) Clone(card Card) Card {
+	card.ThisTurnEffectActivationCounts = slices.Clone(card.ThisTurnEffectActivationCounts)
+	return card
+}
+
+func (f *cardF) IsMonster(card Card) bool {
+	return slices.Contains(MONSTER_NAMES, card.Name)
+}
+
+func (f *cardF) IsLowLevelMonster(card Card) bool {
+	return slices.Contains(LOW_LEVELS, card.Level)
+}
+
+func (f *cardF) IsDarkMonster(card Card) bool {
 	return card.Attribute == DARK
 }
 
-func (card Card) Clone() Card {
-	counts := make([]int, len(card.ThisTurnEffectActivationCounts))
-	for i, c := range card.ThisTurnEffectActivationCounts {
-		counts[i] = c
-	}
-	card.ThisTurnEffectActivationCounts = counts
-	return card
+func (f *cardF) CanNormalSummon(card Card) bool {
+	return f.IsLowLevelMonster(card)
+}
+
+func (f *cardF) CanTributeSummonCost(card Card) bool {
+	return f.IsMonster(card) && card.Name != SUMMONER_MONK
 }
 
 type Cards []Card
 
 var OLD_LIBRARY_EXODIA_DECK = func() Cards {
-	y, err := NewCards(
+	names := CardNames{
 		EXODIA_THE_FORBIDDEN_ONE,
 		LEFT_ARM_OF_THE_FORBIDDEN_ONE,
 		RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
@@ -212,49 +272,26 @@ var OLD_LIBRARY_EXODIA_DECK = func() Cards {
 
 		LEGACY_OF_YATA_GARASU,
 		LEGACY_OF_YATA_GARASU,
-		LEGACY_OF_YATA_GARASU,
-	)
+		LEGACY_OF_YATA_GARASU,		
+	}
+	y, err := CardsF.New(names)
 	if err != nil {
 		panic(err)
 	}
 	return y
 }()
 
-func NewCards(names ...CardName) (Cards, error) {
-	result := make(Cards, len(names))
-	for i, name := range names {
-		var card Card
-		if name == NO_NAME {
-			card = EMPTY_CARD.Clone()
-		} else {
-			data, ok := CARD_DATA_BASE[name]
-			if !ok {
-				msg := fmt.Sprintf("データベースに存在しないカード名が入力された %v", name)
-				return Cards{}, fmt.Errorf(msg)
-			}
-			card = Card{Name: name, Category:data.Category, Attribute:data.Attribute, Level:data.Level, ThisTurnEffectActivationCounts: make([]int, data.EffectNum)}
-		}
-		result[i] = card
-	}
-	return result, nil
+type cardsF struct{}
+var CardsF = cardsF{}
+
+func (f *cardsF) New(names CardNames) (Cards, error) {
+	return fn.MapError[Cards](names, NewCard)
 }
 
-func (cards Cards) Names() CardNames {
-	result := make(CardNames, len(cards))
-	for i, card := range cards {
-		result[i] = card.Name
- 	}
-	return result
+func (f *cardsF) Names(cards Cards) CardNames {
+	return fn.Map[CardNames](cards, CardF.GetName)
 }
 
-func (cards Cards) IDs() CardIDs {
-	result := make(CardIDs, len(cards))
-	for i, card := range cards {
-		result[i] = card.ID
-	}
-	return result
-}
-
-func (cards Cards) IDSorted() Cards {
-	return omws.SortedFunc(cards, func(c1, c2 Card) bool { return c1.ID < c2.ID })
+func (f *cardsF) Clone(cards Cards) Cards {
+	return fn.Map[Cards](cards, CardF.Clone)
 }

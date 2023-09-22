@@ -13,7 +13,7 @@ type handSpellSpeed1MonsterActivatable struct{}
 var HandSpellSpeed1MonsterActivatable = handSpellSpeed1MonsterActivatable{}
 
 func (h *handSpellSpeed1MonsterActivatable) ThunderDragon(state *State, card *Card) []bool {
-	effect0 := slices.Contains(state.P1.Deck.Names(), THUNDER_DRAGON)
+	effect0 := slices.Contains(CardsF.Names(state.P1.Deck), THUNDER_DRAGON)
 	return []bool{effect0}
 }
 
@@ -50,7 +50,7 @@ func (h *handNormalSpellActivatable) DoubleSummon(state *State, card *Card) []bo
 }
 
 func (h *handNormalSpellActivatable) ToonTableOfContents(state *State, card *Card) []bool {
-	effect0 := slices.ContainsFunc(state.P1.Deck.Names(), func(name CardName) bool { return slices.Contains(TOON_CARD_NAMES, name)})
+	effect0 := slices.ContainsFunc(CardsF.Names(state.P1.Deck), func(name CardName) bool { return slices.Contains(TOON_CARD_NAMES, name)})
 	return []bool{effect0}
 }
 
@@ -70,7 +70,7 @@ func (h *handNormalSpellActivatable) AllureOfDarkness(state *State, card *Card) 
 }
 
 func (h *handNormalSpellActivatable) DarkFactoryOfMassProduction(state *State, card *Card) []bool {
-	effect0 := omwslices.CountFunc(state.P1.Graveyard.Names(), func(name CardName) bool { return slices.Contains(NORMAL_MONSTER_NAMES, name) }) >= 2
+	effect0 := omwslices.CountFunc(CardsF.Names(state.P1.Graveyard), func(name CardName) bool { return slices.Contains(NORMAL_MONSTER_NAMES, name) }) >= 2
 	return []bool{effect0}
 }
 

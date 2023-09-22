@@ -1,11 +1,17 @@
 package bmgt
 
 import (
+	"math"
 	"math/rand"
 	"golang.org/x/exp/slices"
 	omwrand "github.com/sw965/omw/rand"
 	omwslices "github.com/sw965/omw/slices"
 	"github.com/sw965/omw/fn"
+)
+
+const (
+	MEDIUM_LEVEL_TRIBUTE_SUMMON_COST = 1
+	HIGH_LEVEL_TRIBUTE_SUMMON_COST = 2
 )
 
 const (
@@ -38,18 +44,24 @@ type OneSideState struct {
 	IsTurn bool
 
 	OncePerTurnLimitCardNames CardNames
-	Actions Actions
+
+	NormalSummonIndex int
+	NormalSummonSuccessIndex int
+	FlipSummonIndex int
+	FlipSummonSuccessIndex int
+
+	SpellTrapCardActivationIndex int
+
+	AfterNormalDraw bool
+	AfterDraw bool
+
+	IsOneDayOfPeaceEndTrigger bool
 }
 
 func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) OneSideState {
 	n := len(deck)
 
-	setID := func(i int, card Card) Card {
-		card.ID = startID + CardID(i)
-		return card
-	}
-
-	deck = fn.MapIndex[Cards](deck, setID)
+	deck = fn.MapIndex[Cards](deck, CardF.SetID, startID)
 	deck = omwrand.Shuffled(deck, r)
 	hand := deck[:INIT_DRAW]
 	deck = deck[INIT_DRAW:]
@@ -65,24 +77,10 @@ func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) OneSideState {
 	return result
 }
 
-func (oss *OneSideState) Draw(num int) {
-	hand := make(Cards, 0, len(oss.Hand) + num)
-	hand = append(hand, oss.Hand...)
-	hand = append(hand, oss.Deck[:num]...)
-	oss.Hand = hand
-	oss.Deck = oss.Deck[num:]
-}
-
-//手札を墓地へ捨てる
-func (oss *OneSideState) Discard(idxs []int) {
-	hand := make(Cards, 0, len(oss.Hand) - len(idxs)) 
-	for i, card := range oss.Hand {
-		if slices.Contains(idxs, i) {
-			oss.Graveyard = append(oss.Graveyard, card)
-		} else {
-			hand = append(hand, card)
-		}
-	}
+func (oss *OneSideState) NormalSummon(handI, zoneI int, pos BattlePosition) {
+	hand, summonCard := omwslices.Delete(state.P1.Hand, handI)
+	oss.P1.MonsterZone[zoneI] = summonCard
+	oss.P1.MonsterZone[zoneI].NormalSummonIndex = zoneI
 	oss.Hand = hand
 }
 
@@ -175,6 +173,18 @@ func (oss *OneSideState) HandToSpellTrapZone(handI, zoneI int) {
 	oss.Hand = hand
 }
 
+func (oss *OneSideState) HandToMonsterZone(handIdx, zoneIdx int) {
+	hand := make(Cards, 0, len(oss.Hand)-1)
+	for handI, card := range oss.Hand {
+		if handI == handIdx {
+			oss.MonsterZone[zoneIdx] = oss.Hand[handIdx]
+		} else {
+			hand = append(hand, card)
+		}
+	}
+	oss.Hand = hand
+}
+
 type Phase int
 
 const (
@@ -208,169 +218,99 @@ func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) State {
 	return state
 }
 
-func (state *State) LegalActions() Actions {
-	if len(state.P1.Actions) != 0 {
-		p1LastAction := state.P1.Actions[len(state.P1.Actions)-1]
-		switch p1LastAction.CardName {
-			case THUNDER_DRAGON:
-				if p1LastAction.IsCardActivation {
-					return Actions{Action{CardName:THUNDER_DRAGON, IsCost:true}}
-				}
-		}
-	}
+type StateChanger func(*State)
 
-	y := make(Actions, 0, 128)
+type stateChangerF struct{}
+var StateChangerF = stateChangerF{}
 
-	monsterZoneEmptyIndices := omwslices.IndicesFunc(state.P1.MonsterZone, func(card Card) bool { return card.Name == NO_NAME })
-	tributeSummonCostIndices := omwslices.IndicesFunc(
-		state.P1.MonsterZone,
-		func(card Card) bool {
-			return card.Name != NO_NAME && card.Name != SUMMONER_MONK
-		},
-	)
-	spellTrapZoneEmptyIndices := omwslices.IndicesFunc(state.P1.SpellTrapZone, func(card Card) bool { return card.Name == NO_NAME })
-
-	isSpellSpeed1Activatable := state.Phase.IsMainPhase() && len(state.Chain) == 0
-	isSpellSpeed2Activatable := len(state.Chain) == 0 || state.Chain[len(state.Chain)-1].Card.Category != COUNTER_TRAP
-
-	if isSpellSpeed1Activatable {
-		for handI, card := range state.P1.Hand {
-			if card.Category.IsMonster() {
-				if slices.Contains(LOW_LEVELS, card.Level) {
-					for _, empI := range monsterZoneEmptyIndices {
-						action := Action{
-							CardName:card.Name,
-							HandIndices:[]int{handI},
-							MonsterZoneIndices:[]int{empI},
-							IsNormalSummon:true,
-						}
-						y = append(y, action)
-					}
-				}
-	
-				var tributeCost int
-				if slices.Contains(MEDIUM_LEVELS, card.Level) {
-					tributeCost = 1
-				} else {
-					tributeCost = 2
-				}
-	
-				if tributeCost >= len(tributeSummonCostIndices) {
-					idxss := omwslices.Combination[[][]int, []int](tributeSummonCostIndices, tributeCost)
-					for _, idxs := range idxss {
-						action := Action{
-							CardName:card.Name,
-							MonsterZoneIndices:idxs,
-							IsNormalSummon:true,
-							IsTributeSummonCost:true,
-						}
-						y = append(y, action)
-					}
-				}
-			}
-
-			if f, ok := HAND_SPELL_SPEED1_MONSTER_ACTIVATABLE[card.Name]; ok {
-				if omwslices.Any(f(state, &card)) {
-					action := Action{
-						CardName:card.Name,
-						HandIndices:[]int{handI},
-						IsCardActivation:true,
-					}
-					y = append(y, action)
-				}
-			}
-
-			if f, ok := HAND_NORMAL_SPELL_ACTIVATABLE[card.Name]; ok {
-				if omwslices.Any(f(state, &card)) {
-					for _, zoneI := range spellTrapZoneEmptyIndices {
-						action := Action{
-							CardName:card.Name,
-							HandIndices:[]int{handI},
-							SpellTrapZoneIndices:[]int{zoneI},
-							IsCardActivation:true,
-						}
-						y = append(y, action)
-					}
-				}
-			}
-
-			if card.Category.IsSpell() || card.Category.IsTrap() {
-				for _, empI := range spellTrapZoneEmptyIndices {
-					action := Action{
-						HandIndices:[]int{handI},
-						SpellTrapZoneIndices:[]int{empI},
-						IsSpellTrapSet:true,
-					}
-					y = append(y, action)
-				}
-			}
-		}
-
-		for zoneI, card := range state.P1.SpellTrapZone {
-			if f, ok := ZONE_NORMAL_SPELL_ACTIVATABLE[card.Name]; ok {
-				if omwslices.Any(f(state, &card)) {
-					action := Action{
-						CardName:card.Name,
-						SpellTrapZoneIndices:[]int{zoneI},
-						IsCardActivation:true,
-					}
-					y = append(y, action)
-				}
-			}
-		}
-	}
-
-	if isSpellSpeed2Activatable {
-		if state.P1.IsTurn {
-			for handI, card := range state.P1.Hand {
-				if f, ok := HAND_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]; ok {
-					if omwslices.Any(f(state, &card)) {
-						for _, zoneI := range spellTrapZoneEmptyIndices {
-							action := Action{
-								CardName:card.Name,
-								HandIndices:[]int{handI},
-								SpellTrapZoneIndices:[]int{zoneI},
-								IsCardActivation:true,
-							}
-							y = append(y, action)
-						}
-					}
-				}
-			}
-		}
-
-		for zoneI, card := range state.P1.SpellTrapZone {
-			if f, ok := ZONE_QUICK_PLAY_SPELL_ACTIVATABLE[card.Name]; ok {
-				if omwslices.Any(f(state, &card)) && !card.IsSetTurn {
-					action := Action{
-						CardName:card.Name,
-						SpellTrapZoneIndices:[]int{zoneI},
-						IsCardActivation:true,
-					}
-					y = append(y, action)
-				}
-			}
-
-			if f, ok := ZONE_NORMAL_TRAP_ACTIVATABLE[card.Name]; ok {
-				if omwslices.Any(f(state, &card)) && !card.IsSetTurn {
-					action := Action{
-						CardName:card.Name,
-						SpellTrapZoneIndices:[]int{zoneI},
-						IsCardActivation:true,
-					}
-					y = append(y, action)
-				}
- 			}
-		}
-	}
-	return y
+func (f *stateChangerF) ReversePlayer1AndPlayer2(state *State) {
+	p1 := state.P1
+	p2 := state.P2
+	state.P1 = p2
+	state.P2 = p1
 }
 
-func (state State) Push(action *Action) State {
-	if action.IsNormalSummon {
-		if action.IsTributeSummonCost {
-			state.P1.MonsterZoneToGraveyard(action.MonsterZoneIndices)
+func (f *stateChangerF) PayHalfLifePoint(state *State) {
+	state.P1.LifePoint -= LifePoint(math.Round(float64(state.P1.LifePoint) / 2.0))
+}
+
+func (f *stateChangerF) HandToDeck(idxs []int, r *rand.Rand) StateChanger {
+	return func(state *State) {
+		var deck Cards
+		state.P1.Hand, deck = omwslices.Delete(state.P1.Hand, idxs...)
+		state.P1.Deck = append(state.P1.Deck, deck...)
+		f.NewShuffle(r)(state)
+	}
+}
+
+func (f *stateChangerF) Draw(num int) StateChanger {
+	return func(state *State) {
+		hand := make(Cards, 0, len(state.P1.Hand) + num)
+		hand = append(hand, state.P1.Hand...)
+		hand = append(hand, state.P1.Deck[:num]...)
+		state.P1.Hand = hand
+		state.P1.Deck = state.P1.Deck[num:]
+	}
+}
+
+func (f *stateChangerF) Shuffle(r *rand.Rand) StateChanger {
+	return func(state *State) {
+		omwrand.Shuffle(state.P1.Deck, r)
+	}
+}
+
+func (f *stateChangerF) Discard(idxs []int) StateChanger {
+	return func(state *State) {
+		hand, gy := slices.Delete(state.P1.Hand, idxs)
+		state.P1.Hand = hand
+		state.P1.Graveyard = append(state.P1.Graveyard, gy...)
+	}
+}
+
+func (f *stateChangerF) NegateNormalSummon(state *State) {
+	p1Idx := state.P1.NormalSummonIndex
+	p2Idx := state.P2.NormalSummonIndex
+		
+	if p1Idx != -1 {
+		state.P1.MonsterZone[p1Idx].NegateSummon = true
+	}
+
+	if p2Idx != -1 {
+		state.P2.MonsterZone[p2Idx].NegateSummon = true
+	}
+}
+
+func (f *stateChangerF) DestroyMonsterZone(idxs []int) StateChanger {
+	return func(state *State) {
+		for _, idx := range idxs {
+			state.P1.MonsterZone[idx].Destroyed = true
 		}
 	}
-	return state
 }
+
+func (f *stateChangerF) SendMonsterZoneToGraveyard(idxs []int) StateChanger {
+	return func(state *State) {
+		cards := omwslices.IndicesAccess(state.P1.MonsterZone)(idxs)
+		for _, idx := range idxs {
+			state.P1.MonsterZone[idx].Name = NO_NAME
+		}
+		state.P1.Graveyard = append(state.P1.Graveyard, cards...)
+	}
+}
+
+func (f *stateChangerF) NewMonsterZoneSpellCounterRemoval(idx, removal int) StateChanger {
+	return func(state *State) {
+		if removal == -1 {
+			state.P1.MonsterZone[idx].SpellCounter = 0
+		} else {
+			state.P1.MonsterZone[idx].SpellCounter -= removal
+		}
+	}
+}
+
+func (f *stateChangerF) OneDayOfPeace(state *State) {
+	state.P2.IsOneDayOfPeaceEndTrigger = true
+}
+
+type StateChangers []StateChanger
+type StateChangerss []StateChangers
