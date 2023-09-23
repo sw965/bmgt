@@ -12,9 +12,9 @@ type CostsMaker func(*Action) Costs
 func NewRoyalMagicalLibraryCosts(action *Action) Costs {
 	cost0 := ZERO_COST
 	cost1 := Cost{
-		StateChangerF.MonsterZoneSpellCounterRemoval(action.MonsterZoneIndices[0], -1),
+		StateChangerF.MonsterZoneSpellCounterRemoval(action.MonsterZoneIndices[0], ROYAL_MAGICAL_LIBRARY_MAX_SPELL_COUNTER),
 	}
-	return Costs{cost0, cost1} 
+	return Costs{cost0, cost1}
 }
 
 // https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=4861&request_locale=ja

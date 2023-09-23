@@ -14,6 +14,10 @@ var (
 
 const TEMPLATE_JSON_NAME = "テンプレート.json"
 
+func IsTemplateJsonName(name string) bool {
+	return name == TEMPLATE_JSON_NAME
+}
+
 func IsNotTemplateJsonName(name string) bool {
-	return name != TEMPLATE_JSON_NAME
+	return !IsTemplateJsonName(name)
 }

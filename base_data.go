@@ -3,8 +3,9 @@ package bmgt
 import (
 	"fmt"
 	"github.com/sw965/omw/json"
-	osmw "github.com/sw965/omw/os"
-	"strings"
+	omwos "github.com/sw965/omw/os"
+	omwstrings "github.com/sw965/omw/strings"
+	"github.com/sw965/omw/fn"
 )
 
 type Level int
@@ -161,7 +162,7 @@ type CardBaseData struct {
 	MaxSpellCounter int
 }
 
-func LoadCardDataBase(path string) (CardBaseData, error) {
+func LoadCardBaseData(path string) (CardBaseData, error) {
 	data, err := json.Load[cardBaseData](path)
 	if err != nil {
 		return CardBaseData{}, err
@@ -213,21 +214,21 @@ var CARD_DATA_BASE = func() CardDatabase {
 	y := CardDatabase{}
 
 	add := func(path string) {
-		dirEntries, err := osmw.NewDirEntries(path)
+		dirEntries, err := omwos.NewDirEntries(path)
 		if err != nil {
 			panic(err)
 		}
-		dirNames := dirEntries.Names()
-		for _, dirName := range dirNames {
-			if dirName == "テンプレート.json" {
-				continue
-			}
-			name := strings.TrimRight(dirName, ".json")
-			data, err := LoadCardDataBase(path + dirName)
-			if err != nil {
-				panic(err)
-			}
-			y[STRING_TO_CARD_NAME[name]] = &data
+
+		dirNames := fn.Filter[[]string](dirEntries.Names(), IsNotTemplateJsonName)
+		cardNames := fn.Map[[]string](dirNames, omwstrings.Replace(omwos.JSON_EXTENSION, "", 1))
+		loadCardBaseData := func(dirName string) (CardBaseData, error) { return LoadCardBaseData(path + dirName) }
+		baseDataList, err := fn.MapError[[]CardBaseData](dirNames, loadCardBaseData)
+		if err != nil {
+			panic(err)
+		}
+
+		for i, name := range cardNames {
+			y[STRING_TO_CARD_NAME[name]] = &baseDataList[i]
 		}
 	}
 

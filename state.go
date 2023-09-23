@@ -49,8 +49,11 @@ type OneSideState struct {
 	NormalSummonSuccessIndex int
 	FlipSummonIndex int
 	FlipSummonSuccessIndex int
+	SpecialSummonIndex int
+	SpecialSummonSuccessIndex int
 
-	SpellTrapCardActivationIndex int
+	SpellCardActivationIndex int
+	TrapCardActivationIndex int
 
 	AfterNormalDraw bool
 	AfterDraw bool
@@ -78,9 +81,9 @@ func NewOneSideState(deck Cards, r *rand.Rand, startID CardID) OneSideState {
 }
 
 func (oss *OneSideState) NormalSummon(handI, zoneI int, pos BattlePosition) {
-	hand, summonCard := omwslices.Delete(state.P1.Hand, handI)
-	oss.P1.MonsterZone[zoneI] = summonCard
-	oss.P1.MonsterZone[zoneI].NormalSummonIndex = zoneI
+	hand, summonCards := omwslices.Delete(oss.Hand, handI)
+	oss.MonsterZone[zoneI] = summonCards[0]
+	oss.NormalSummonIndex = zoneI
 	oss.Hand = hand
 }
 
@@ -218,6 +221,9 @@ func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) State {
 	return state
 }
 
+type stateF struct{}
+var StateF = stateF{}
+
 type StateChanger func(*State)
 
 type stateChangerF struct{}
@@ -239,7 +245,7 @@ func (f *stateChangerF) HandToDeck(idxs []int, r *rand.Rand) StateChanger {
 		var deck Cards
 		state.P1.Hand, deck = omwslices.Delete(state.P1.Hand, idxs...)
 		state.P1.Deck = append(state.P1.Deck, deck...)
-		f.NewShuffle(r)(state)
+		f.Shuffle(r)(state)
 	}
 }
 
@@ -261,55 +267,138 @@ func (f *stateChangerF) Shuffle(r *rand.Rand) StateChanger {
 
 func (f *stateChangerF) Discard(idxs []int) StateChanger {
 	return func(state *State) {
-		hand, gy := slices.Delete(state.P1.Hand, idxs)
+		hand, gy := omwslices.Delete(state.P1.Hand, idxs...)
 		state.P1.Hand = hand
 		state.P1.Graveyard = append(state.P1.Graveyard, gy...)
 	}
 }
 
-func (f *stateChangerF) NegateNormalSummon(state *State) {
-	p1Idx := state.P1.NormalSummonIndex
-	p2Idx := state.P2.NormalSummonIndex
-		
-	if p1Idx != -1 {
-		state.P1.MonsterZone[p1Idx].NegateSummon = true
-	}
-
-	if p2Idx != -1 {
-		state.P2.MonsterZone[p2Idx].NegateSummon = true
-	}
-}
-
-func (f *stateChangerF) DestroyMonsterZone(idxs []int) StateChanger {
+func (f *stateChangerF) NegateNormalSummon(destroy bool) StateChanger {
 	return func(state *State) {
-		for _, idx := range idxs {
-			state.P1.MonsterZone[idx].Destroyed = true
+		p1Idx := state.P1.NormalSummonIndex
+		p2Idx := state.P2.NormalSummonIndex
+
+		negate := func(zone Cards, idx int) {
+			zone[idx].NegatedNormalSummon = true
+			zone[idx].Destroyed = destroy
+		}
+	
+		if p1Idx != -1 {
+			negate(state.P1.MonsterZone, p1Idx)
+			return
+		}
+	
+		if p2Idx != -1 {
+			negate(state.P2.MonsterZone, p2Idx)
+			return
 		}
 	}
 }
 
-func (f *stateChangerF) SendMonsterZoneToGraveyard(idxs []int) StateChanger {
+func (f *stateChangerF) NegateFlipSummon(destroy bool) StateChanger {
 	return func(state *State) {
-		cards := omwslices.IndicesAccess(state.P1.MonsterZone)(idxs)
-		for _, idx := range idxs {
-			state.P1.MonsterZone[idx].Name = NO_NAME
+		p1Idx := state.P1.FlipSummonIndex
+		p2Idx := state.P2.FlipSummonIndex
+
+		negate := func(zone Cards, idx int) {
+			zone[idx].NegatedFlipSummon = true
+			zone[idx].Destroyed = destroy
 		}
-		state.P1.Graveyard = append(state.P1.Graveyard, cards...)
+	
+		if p1Idx != -1 {
+			negate(state.P1.MonsterZone, p1Idx)
+			return
+		}
+	
+		if p2Idx != -1 {
+			negate(state.P2.MonsterZone, p2Idx)
+			return
+		}
 	}
 }
 
-func (f *stateChangerF) NewMonsterZoneSpellCounterRemoval(idx, removal int) StateChanger {
+func (f *stateChangerF) NegateSpecialSummon(destroy bool) StateChanger {
 	return func(state *State) {
-		if removal == -1 {
-			state.P1.MonsterZone[idx].SpellCounter = 0
-		} else {
-			state.P1.MonsterZone[idx].SpellCounter -= removal
+		p1Idx := state.P1.SpecialSummonIndex
+		p2Idx := state.P2.SpecialSummonIndex
+
+		negate := func(zone Cards, idx int) {
+			zone[idx].NegatedSpecialSummon = true
+			zone[idx].Destroyed = destroy
+		}
+	
+		if p1Idx != -1 {
+			negate(state.P1.MonsterZone, p1Idx)
+			return
+		}
+	
+		if p2Idx != -1 {
+			negate(state.P2.MonsterZone, p2Idx)
+			return
+		}
+	}
+}
+
+func (f *stateChangerF) MonsterZoneSpellCounterRemoval(idx, removal int) StateChanger {
+	return func(state *State) {
+		state.P1.MonsterZone[idx].SpellCounter -= removal
+	}
+}
+
+func (f *stateChangerF) NegateSpellCardActivation(destroy bool) StateChanger {
+	return func(state *State) {
+		p1Idx := state.P1.SpellCardActivationIndex
+		p2Idx := state.P2.SpellCardActivationIndex
+
+		negate := func(zone Cards, idx int) {
+			zone[idx].NegatedCardActivation = true
+			zone[idx].Destroyed = destroy
+		}
+	
+		if p1Idx != -1 {
+			negate(state.P1.SpellTrapZone, p1Idx)
+			return
+		}
+	
+		if p2Idx != -1 {
+			negate(state.P2.SpellTrapZone, p2Idx)
+			return
+		}
+	}
+}
+
+func (f *stateChangerF) NegateTrapCardActivation(destroy bool) StateChanger {
+	return func(state *State) {
+		p1Idx := state.P1.TrapCardActivationIndex
+		p2Idx := state.P2.TrapCardActivationIndex
+
+		negate := func(zone Cards, idx int) {
+			zone[idx].NegatedCardActivation = true
+			zone[idx].Destroyed = destroy
+		}
+	
+		if p1Idx != -1 {
+			negate(state.P1.SpellTrapZone, p1Idx)
+			return
+		}
+	
+		if p2Idx != -1 {
+			negate(state.P2.SpellTrapZone, p2Idx)
+			return
 		}
 	}
 }
 
 func (f *stateChangerF) OneDayOfPeace(state *State) {
 	state.P2.IsOneDayOfPeaceEndTrigger = true
+}
+
+func (f *stateChangerF) SolemnJudgment(state *State) {
+	f.NegateNormalSummon(true)
+	f.NegateFlipSummon(true)
+	f.NegateSpecialSummon(true)
+	f.NegateSpellCardActivation(true)
+	f.NegateTrapCardActivation(true)
 }
 
 type StateChangers []StateChanger

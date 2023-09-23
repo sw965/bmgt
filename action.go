@@ -67,7 +67,7 @@ func (f *actionsF) NewNormalSummon(state *State) Actions {
 	return y
 }
 
-func (f *actionsF) NewLegalNormalSummonActions(state *State) Actions {
+func (f *actionsF) NewLegalNormalSummon(state *State) Actions {
 	actions := f.NewNormalSummon(state)
 	return fn.Filter(actions, ActionF.IsLegalNormalSummon(state))
 }

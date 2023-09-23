@@ -1,5 +1,9 @@
 package bmgt
 
+import (
+	"math/rand"
+)
+
 type Effect StateChangers
 
 var ZERO_EFFECT = Effect{}
@@ -7,7 +11,7 @@ var ZERO_EFFECT = Effect{}
 type Effects []Effect
 
 // https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=9778&request_locale=ja
-func NewOneDayOfPeaceEffects(action *Action) Effects {
+func NewOneDayOfPeaceEffects(action *Action, r *rand.Rand) Effects {
 	effect0 := Effect{
 		StateChangerF.Draw(1),
 		StateChangerF.ReversePlayer1AndPlayer2,
@@ -19,16 +23,16 @@ func NewOneDayOfPeaceEffects(action *Action) Effects {
 }
 
 // https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=6541&request_locale=ja
-func NewMagicalMalletEffects(action *Action) Effects {
+func NewMagicalMalletEffects(action *Action, r *rand.Rand) Effects {
 	effect0 := Effect{
-		StateChangerF.HandToDeck(action.HandIndices),
+		StateChangerF.HandToDeck(action.HandIndices, r),
 		StateChangerF.Draw(len(action.HandIndices)),
 	}
 	return Effects{effect0}
 }
 
 // https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=5658&request_locale=ja
-func NewRoyalMagicalLibraryEffects(action *Action) Effects {
+func NewRoyalMagicalLibraryEffects(action *Action, r *rand.Rand) Effects {
 	effect0 := ZERO_EFFECT
 	effect1 := Effect{
 		StateChangerF.Draw(1),
@@ -37,8 +41,9 @@ func NewRoyalMagicalLibraryEffects(action *Action) Effects {
 }
 
 // https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=4861&request_locale=ja
-func NewSolemnJudgmentEffects(action *Action) Effects {
+func NewSolemnJudgmentEffects(action *Action, r *rand.Rand) Effects {
 	effect0 := Effect{
-
+		StateChangerF.SolemnJudgment,
 	}
+	return Effects{effect0}
 }

@@ -8,6 +8,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	ROYAL_MAGICAL_LIBRARY_MAX_SPELL_COUNTER = 3
+)
+
 type CardName int
 
 const (
@@ -43,6 +47,7 @@ var STRING_TO_CARD_NAME = map[string]CardName{
 	"打ち出の小槌":MAGICAL_MALLET,
 	"王立魔法図書館":ROYAL_MAGICAL_LIBRARY,
 	"強欲な瓶":JAR_OF_GREED,
+	"強欲な壺":POT_OF_GREED,
 	"召喚僧サモンプリースト":SUMMONER_MONK,
 	"サンダー・ドラゴン":THUNDER_DRAGON,
 	"精神統一":GATHER_YOUR_MIND,
@@ -150,19 +155,28 @@ type Card struct {
 	IsSet     bool
 	IsSetTurn bool
 
+	Destroyed bool
+
+	NegatedNormalSummon bool
+	NegatedFlipSummon bool
+	NegatedSpecialSummon bool
+	NegatedCardActivation bool
+
 	ThisTurnEffectActivationCounts []int
 	SpellCounter                   int
-
 	ID        CardID
 }
 
-func NewCard(name CardName) (Card, error) {
+type cardF struct{}
+var CardF = cardF{}
+
+func (f *cardF) New(name CardName) (Card, error) {
 	if name == NO_NAME {
 		return Card{}, nil
 	} else {
 		data, ok := CARD_DATA_BASE[name]
 		if !ok {
-			msg := fmt.Sprintf("データベースに存在しないカード名が入力された %v", name)
+			msg := fmt.Sprintf("データベースに存在しないカード名が入力された %v", CARD_NAME_TO_STRING[name])
 			return Card{}, fmt.Errorf(msg)
 		} else {
 			card := data.ToCard()
@@ -171,9 +185,6 @@ func NewCard(name CardName) (Card, error) {
 		}
 	}
 }
-
-type cardF struct{}
-var CardF = cardF{}
 
 func (f *cardF) IsEmpty(card Card) bool {
 	return card.Name == NO_NAME
@@ -220,7 +231,7 @@ func (f *cardF) CanTributeSummonCost(card Card) bool {
 type Cards []Card
 
 var OLD_LIBRARY_EXODIA_DECK = func() Cards {
-	names := CardNames{
+	y, err := CardsF.New(
 		EXODIA_THE_FORBIDDEN_ONE,
 		LEFT_ARM_OF_THE_FORBIDDEN_ONE,
 		RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
@@ -272,9 +283,8 @@ var OLD_LIBRARY_EXODIA_DECK = func() Cards {
 
 		LEGACY_OF_YATA_GARASU,
 		LEGACY_OF_YATA_GARASU,
-		LEGACY_OF_YATA_GARASU,		
-	}
-	y, err := CardsF.New(names)
+		LEGACY_OF_YATA_GARASU,	
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -284,8 +294,8 @@ var OLD_LIBRARY_EXODIA_DECK = func() Cards {
 type cardsF struct{}
 var CardsF = cardsF{}
 
-func (f *cardsF) New(names CardNames) (Cards, error) {
-	return fn.MapError[Cards](names, NewCard)
+func (f *cardsF) New(names ...CardName) (Cards, error) {
+	return fn.MapError[Cards](names, CardF.New)
 }
 
 func (f *cardsF) Names(cards Cards) CardNames {
