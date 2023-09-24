@@ -94,46 +94,53 @@ var STRING_TO_TYPE = map[string]Type{
 
 type Types []Type
 
-type Category int
+type MonsterCategory int
+type SpellCategory int
+type TrapCategory int
 
 const (
-	NORMAL_MONSTER Category = iota
+	NORMAL_MONSTER MonsterCategory = iota
 	EFFECT_MONSTER
 	SPIRIT_MONSTER
 
-	NORMAL_SPELL
+	NORMAL_SPELL SpellCategory = iota
 	QUICK_PLAY_SPELL
 	CONTINUOUS_SPELL
 
-	NORMAL_TRAP
+	NORMAL_TRAP TrapCategory = iota
 	CONTINUOUS_TRAP
 	COUNTER_TRAP
 )
 
+type Category int
+
 func (c Category) IsMonster() bool {
-	return c == NORMAL_MONSTER || c == EFFECT_MONSTER || c == SPIRIT_MONSTER
+	m := MonsterCategory(c)
+	return m == NORMAL_MONSTER || m == EFFECT_MONSTER || m == SPIRIT_MONSTER
 }
 
 func (c Category) IsSpell() bool {
-	return c == NORMAL_SPELL || c == QUICK_PLAY_SPELL || c == CONTINUOUS_SPELL
+	s := SpellCategory(c)
+	return s == NORMAL_SPELL || s == QUICK_PLAY_SPELL || s == CONTINUOUS_SPELL
 }
 
 func (c Category) IsTrap() bool {
-	return c == NORMAL_TRAP || c == CONTINUOUS_TRAP || c == COUNTER_TRAP
+	t := TrapCategory(c)
+	return t == NORMAL_TRAP || t == CONTINUOUS_TRAP || t == COUNTER_TRAP
 }
 
 var STRING_TO_CATEGORY = map[string]Category{
-	"通常モンスター":NORMAL_MONSTER,
-	"効果モンスター":EFFECT_MONSTER,
-	"スピリットモンスター":SPIRIT_MONSTER,
+	"通常モンスター":Category(NORMAL_MONSTER),
+	"効果モンスター":Category(EFFECT_MONSTER),
+	"スピリットモンスター":Category(SPIRIT_MONSTER),
 
-	"通常魔法":NORMAL_SPELL,
-	"速攻魔法":QUICK_PLAY_SPELL,
-	"永続魔法":CONTINUOUS_SPELL,
+	"通常魔法":Category(NORMAL_SPELL),
+	"速攻魔法":Category(QUICK_PLAY_SPELL),
+	"永続魔法":Category(CONTINUOUS_SPELL),
 
-	"通常罠":NORMAL_TRAP,
-	"永続罠":CONTINUOUS_TRAP,
-	"カウンター罠":COUNTER_TRAP,
+	"通常罠":Category(NORMAL_TRAP),
+	"永続罠":Category(CONTINUOUS_TRAP),
+	"カウンター罠":Category(COUNTER_TRAP),
 }
 
 type cardBaseData struct {
@@ -241,7 +248,7 @@ var CARD_DATA_BASE = func() CardDatabase {
 
 func init() {
 	for name, data := range CARD_DATA_BASE {
-		if data.Category != NORMAL_MONSTER && data.EffectNum == 0 {
+		if data.Category != Category(NORMAL_MONSTER) && data.EffectNum == 0 {
 			msg := fmt.Sprintf("通常モンスターではないのに、効果の数が0になっている。(%v)", CARD_NAME_TO_STRING[name])
 			fmt.Println(msg)
 		} 

@@ -40,6 +40,7 @@ const (
 	DARK_FACTORY_OF_MASS_PRODUCTION
 	LEGACY_OF_YATA_GARASU
 	MACRO_COSMOS
+	BLUE_EYES_WHITE_DRAGON
 )
 
 var STRING_TO_CARD_NAME = map[string]CardName{
@@ -65,6 +66,7 @@ var STRING_TO_CARD_NAME = map[string]CardName{
 	"闇の誘惑":ALLURE_OF_DARKNESS,
 	"闇の量産工場":DARK_FACTORY_OF_MASS_PRODUCTION,
 	"八汰烏の骸":LEGACY_OF_YATA_GARASU,
+	"青眼の白龍":BLUE_EYES_WHITE_DRAGON,
 }
 
 func StringToCardName(s string) CardName {
@@ -79,6 +81,10 @@ var CARD_NAME_TO_STRING = func() map[CardName]string {
 	return y
 }()
 
+func CardNameToString(cardName CardName) string {
+	return CARD_NAME_TO_STRING[cardName]
+}
+
 type cardNameF struct{}
 var CardNameF = cardNameF{}
 
@@ -87,7 +93,7 @@ func (f *cardNameF) IsMonster(name CardName) bool {
 }
 
 func (f *cardNameF) IsNormalMonster(name CardName) bool {
-	return CARD_DATA_BASE[name].Category == NORMAL_MONSTER
+	return CARD_DATA_BASE[name].Category == Category(NORMAL_MONSTER)
 }
 
 type CardNames []CardName
@@ -129,6 +135,10 @@ var TOON_CARD_NAMES = CardNames{
 	TOON_WORLD,
 }
 
+func CardNamesToStrings(names CardNames) []string {
+	return fn.Map[[]string](names, CardNameToString)
+}
+
 type BattlePosition int
 
 const (
@@ -136,6 +146,19 @@ const (
 	FACE_UP_DEFENSE_POSITION
 	FACE_DOWN_DEFENSE_POSITION
 )
+
+func(bp BattlePosition) ToString() string {
+	switch bp {
+		case ATTACK_POSITION:
+			return "表側攻撃表示"
+		case FACE_UP_DEFENSE_POSITION:
+			return "表側守備表示"
+		case FACE_DOWN_DEFENSE_POSITION:
+			return "裏側守備表示"
+		default:
+			return ""
+	}
+}
 
 type BattlePositions []BattlePosition
 
@@ -198,6 +221,10 @@ func (f *cardF) GetName(card Card) CardName {
 	return card.Name
 }
 
+func (f *cardF) GetID(card Card) CardID {
+	return card.ID
+}
+
 func (f *cardF) SetID(id CardID, card Card) Card {
 	card.ID = id
 	return card
@@ -222,6 +249,21 @@ func (f *cardF) IsDarkMonster(card Card) bool {
 
 func (f *cardF) CanNormalSummon(card Card) bool {
 	return f.IsLowLevelMonster(card)
+}
+
+func (f *cardF) CanFlipSummon(card Card) bool {
+	return !card.IsSetTurn && card.BattlePosition == FACE_DOWN_DEFENSE_POSITION
+}
+
+func (f *cardF) TributeSummonCost(card Card) int {
+	lv := card.Level
+	if slices.Contains(LOW_LEVELS, lv) {
+		return 0
+	} else if slices.Contains(MEDIUM_LEVELS, lv) {
+		return 1
+	} else {
+		return 2
+	}
 }
 
 func (f *cardF) CanTributeSummonCost(card Card) bool {
@@ -302,6 +344,14 @@ func (f *cardsF) Names(cards Cards) CardNames {
 	return fn.Map[CardNames](cards, CardF.GetName)
 }
 
+func (f *cardsF) IDs(cards Cards) CardIDs {
+	return fn.Map[CardIDs](cards, CardF.GetID)
+}
+
 func (f *cardsF) Clone(cards Cards) Cards {
 	return fn.Map[Cards](cards, CardF.Clone)
+}
+
+func (f *cardsF) TributeSUmmonCosts(cards Cards) []int {
+	return fn.Map[[]int](cards, CardF.TributeSummonCost)
 }

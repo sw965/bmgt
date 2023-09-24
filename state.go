@@ -52,11 +52,10 @@ type OneSideState struct {
 	SpecialSummonIndex int
 	SpecialSummonSuccessIndex int
 
+	TributeSummonCostIndices []int
+
 	SpellCardActivationIndex int
 	TrapCardActivationIndex int
-
-	AfterNormalDraw bool
-	AfterDraw bool
 
 	IsOneDayOfPeaceEndTrigger bool
 }
