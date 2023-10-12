@@ -1,60 +1,64 @@
 package bmgt
 
-type Cost StateChangers
+import (
+	omwmath "github.com/sw965/omw/math"
+	omwslices "github.com/sw965/omw/slices"
+)
 
-var ZERO_COST = Cost{}
-
-type Costs []Cost
-
-type CostsMaker func(*Action) Costs
-
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=5658&request_locale=ja
-func NewRoyalMagicalLibraryCosts(action *Action) Costs {
-	cost0 := ZERO_COST
-	cost1 := Cost{
-		StateChangerF.MonsterZoneSpellCounterRemoval(action.MonsterZoneIndices[0], ROYAL_MAGICAL_LIBRARY_MAX_SPELL_COUNTER),
-	}
-	return Costs{cost0, cost1}
+func RoyalMagicalLibraryCost1(state *State, action *Action) {
+	idx := action.MonsterZoneIndices1[0]
+	state.P1.MonsterZone[idx].SpellCounter = 0
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=4861&request_locale=ja
-func NewSolemnJudgmentCosts(action *Action) Costs {
-	cost0 := Cost{
-		StateChangerF.PayHalfLifePoint,
-	}
-	return Costs{cost0}
+func ThunderDragonCost0(state *State, action *Action) {
+	state.P1.Discard(action.HandIndices)
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=6400&request_locale=ja
-func NewSummonerMonkCosts(action *Action) Costs {
-	cost0 := ZERO_COST
-	cost1 := ZERO_COST
-	cost2 := Cost{
-		StateChangerF.Discard(action.HandIndices),
-	}
-	return Costs{cost0, cost1, cost2}
+func ToonWorldCost0(state *State, action *Action) {
+	state.P1.LifePoint -= 1000
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=4431&request_locale=ja
-func NewThunderDragonCosts(action *Action) Costs {
-	cost0 := Cost{
-		StateChangerF.Discard(action.HandIndices),
-	}
-	return Costs{cost0}
+func MagicalStoneExcavationCost0(state *State, action *Action) {
+	state.P1.Discard(action.HandIndices)
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=5688&request_locale=ja
-func NewMagicalStoneExcavationCosts(action *Action) Costs {
-	cost0 := Cost{
-		StateChangerF.Discard(action.HandIndices),
+func NewRoyalMagicalLibraryCost1Actions(state *State, idx int) Actions {
+	action := Action{
+		CardName:ROYAL_MAGICAL_LIBRARY,
+		MonsterZoneIndices1:[]int{idx},
+		Type:COST_ACTION,
 	}
-	return Costs{cost0}
+	return Actions{action}
 }
 
-var COSTS = map[CardName]CostsMaker{
-	ROYAL_MAGICAL_LIBRARY:NewRoyalMagicalLibraryCosts,
-	SOLEMN_JUDGMENT:NewSolemnJudgmentCosts,
-	SUMMONER_MONK:NewSummonerMonkCosts,
-	THUNDER_DRAGON:NewThunderDragonCosts,
-	MAGICAL_STONE_EXCAVATION:NewMagicalStoneExcavationCosts,
+func NewThunderDragonCost0Actions(state *State, idx int) Actions {
+	action := Action{
+		CardName:THUNDER_DRAGON,
+		HandIndices:[]int{idx},
+		Type:COST_ACTION,
+	}
+	return Actions{action}
+}
+
+func NewToonWorldCost0Actions(state *State) Actions {
+	action := Action{
+		CardName:TOON_WORLD,
+		Type:COST_ACTION,
+	}
+	return Actions{action}
+}
+
+func NewMagicalStoneExcavationCost0Actions(state *State) Actions {
+	c := omwmath.Combination{N:len(state.P1.Hand), R:2}
+	idxss := c.Get()
+	y := make(Actions, len(idxss))
+	for i, idxs := range idxss {
+		action := Action{
+			CardName:MAGICAL_STONE_EXCAVATION,
+			HandIndices:idxs,
+			Type:COST_ACTION,
+		}
+		y[i] = action
+	}
+	return y
 }

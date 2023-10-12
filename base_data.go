@@ -114,19 +114,23 @@ const (
 
 type Category int
 
-func (c Category) IsMonster() bool {
-	m := MonsterCategory(c)
+func IsMonsterCategory(category Category) bool {
+	m := MonsterCategory(category)
 	return m == NORMAL_MONSTER || m == EFFECT_MONSTER || m == SPIRIT_MONSTER
 }
 
-func (c Category) IsSpell() bool {
-	s := SpellCategory(c)
+func IsSpellCategory(category Category) bool {
+	s := SpellCategory(category)
 	return s == NORMAL_SPELL || s == QUICK_PLAY_SPELL || s == CONTINUOUS_SPELL
 }
 
-func (c Category) IsTrap() bool {
-	t := TrapCategory(c)
+func IsTrapCategory(category Category) bool {
+	t := TrapCategory(category)
 	return t == NORMAL_TRAP || t == CONTINUOUS_TRAP || t == COUNTER_TRAP
+}
+
+func IsSpiritMonsterCategory(category Category) bool {
+	return category == Category(SPIRIT_MONSTER)
 }
 
 var STRING_TO_CATEGORY = map[string]Category{
@@ -142,6 +146,8 @@ var STRING_TO_CATEGORY = map[string]Category{
 	"永続罠":Category(CONTINUOUS_TRAP),
 	"カウンター罠":Category(COUNTER_TRAP),
 }
+
+type Categories []Category
 
 type cardBaseData struct {
 	Level Level
@@ -181,7 +187,7 @@ func LoadCardBaseData(path string) (CardBaseData, error) {
 		return CardBaseData{}, fmt.Errorf(msg)
 	}
 
-	isMonster := category.IsMonster()
+	isMonster := IsMonsterCategory(category)
 
 	attribute, ok := STRING_TO_ATTRIBUTE[data.Attribute]
 	if !ok && isMonster {

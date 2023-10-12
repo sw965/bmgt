@@ -3,6 +3,7 @@ package bmgt
 import (
 	omwos "github.com/sw965/omw/os"
 	omwstrings "github.com/sw965/omw/strings"
+	omwmath "github.com/sw965/omw/math"
 	"github.com/sw965/omw/fn"
 	"fmt"
 	"golang.org/x/exp/slices"
@@ -85,14 +86,11 @@ func CardNameToString(cardName CardName) string {
 	return CARD_NAME_TO_STRING[cardName]
 }
 
-type cardNameF struct{}
-var CardNameF = cardNameF{}
-
-func (f *cardNameF) IsMonster(name CardName) bool {
-	return CARD_DATA_BASE[name].Category.IsMonster()
+func IsMonsterCardName(name CardName) bool {
+	return IsMonsterCategory(CARD_DATA_BASE[name].Category)
 }
 
-func (f *cardNameF) IsNormalMonster(name CardName) bool {
+func IsNormalMonsterCardName(name CardName) bool {
 	return CARD_DATA_BASE[name].Category == Category(NORMAL_MONSTER)
 }
 
@@ -109,7 +107,7 @@ var MONSTER_NAMES = func() CardNames {
 }()
 
 var NORMAL_MONSTER_NAMES = func() CardNames {
-	return fn.Filter(MONSTER_NAMES, CardNameF.IsNormalMonster)
+	return fn.Filter(MONSTER_NAMES, IsNormalMonsterCardName)
 }()
 
 var SPELL_CARD_NAMES = func() CardNames {
@@ -147,7 +145,7 @@ const (
 	FACE_DOWN_DEFENSE_POSITION
 )
 
-func(bp BattlePosition) ToString() string {
+func BattlePositionToString(bp BattlePosition) string {
 	switch bp {
 		case ATTACK_POSITION:
 			return "表側攻撃表示"
@@ -190,10 +188,7 @@ type Card struct {
 	ID        CardID
 }
 
-type cardF struct{}
-var CardF = cardF{}
-
-func (f *cardF) New(name CardName) (Card, error) {
+func NewCard(name CardName) (Card, error) {
 	if name == NO_NAME {
 		return Card{}, nil
 	} else {
@@ -209,53 +204,64 @@ func (f *cardF) New(name CardName) (Card, error) {
 	}
 }
 
-func (f *cardF) IsEmpty(card Card) bool {
+func IsEmptyCard(card Card) bool {
 	return card.Name == NO_NAME
 }
 
-func (f *cardF) IsNotEmpty(card Card) bool {
-	return !f.IsEmpty(card)
+func IsNotEmptyCard(card Card) bool {
+	return IsEmptyCard(card)
 }
 
-func (f *cardF) GetName(card Card) CardName {
+func GetNameOfCard(card Card) CardName {
 	return card.Name
 }
 
-func (f *cardF) GetID(card Card) CardID {
+func GetIDOfCard(card Card) CardID {
 	return card.ID
 }
 
-func (f *cardF) SetID(id CardID, card Card) Card {
+func SetIDOfCard(id CardID, card Card) Card {
 	card.ID = id
 	return card
 }
 
-func (f *cardF) Clone(card Card) Card {
+func SetBattlePositionOfCard(pos BattlePosition) func(Card) Card {
+	return func(card Card) Card {
+		card.BattlePosition = pos
+		return card	
+	}
+}
+
+func CloneCard(card Card) Card {
 	card.ThisTurnEffectActivationCounts = slices.Clone(card.ThisTurnEffectActivationCounts)
 	return card
 }
 
-func (f *cardF) IsMonster(card Card) bool {
+func IsMonsterCard(card Card) bool {
 	return slices.Contains(MONSTER_NAMES, card.Name)
 }
 
-func (f *cardF) IsLowLevelMonster(card Card) bool {
+func IsLowLevelMonsterCard(card Card) bool {
 	return slices.Contains(LOW_LEVELS, card.Level)
 }
 
-func (f *cardF) IsDarkMonster(card Card) bool {
+func IsDarkMonsterCard(card Card) bool {
 	return card.Attribute == DARK
 }
 
-func (f *cardF) CanNormalSummon(card Card) bool {
-	return f.IsLowLevelMonster(card)
+func CanNormalSummonCard(card Card) bool {
+	return IsLowLevelMonsterCard(card)
 }
 
-func (f *cardF) CanFlipSummon(card Card) bool {
+func CanTributeSummonCard(card Card) bool {
+	return card.Level > omwmath.Max(LOW_LEVELS...)
+}
+
+func CanFlipSummonCard(card Card) bool {
 	return !card.IsSetTurn && card.BattlePosition == FACE_DOWN_DEFENSE_POSITION
 }
 
-func (f *cardF) TributeSummonCost(card Card) int {
+func TributeSummonCostOfCard(card Card) int {
 	lv := card.Level
 	if slices.Contains(LOW_LEVELS, lv) {
 		return 0
@@ -266,14 +272,20 @@ func (f *cardF) TributeSummonCost(card Card) int {
 	}
 }
 
-func (f *cardF) CanTributeSummonCost(card Card) bool {
-	return f.IsMonster(card) && card.Name != SUMMONER_MONK
+func CanTributeSummonCostCard(card Card) bool {
+	return IsMonsterCard(card) && card.Name != SUMMONER_MONK
+}
+
+func EqualNameOfCard(cardName CardName) func(Card)bool {
+	return func(card Card) bool {
+		return card.Name == cardName
+	}
 }
 
 type Cards []Card
 
 var OLD_LIBRARY_EXODIA_DECK = func() Cards {
-	y, err := CardsF.New(
+	y, err := NewCards(
 		EXODIA_THE_FORBIDDEN_ONE,
 		LEFT_ARM_OF_THE_FORBIDDEN_ONE,
 		RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
@@ -333,25 +345,30 @@ var OLD_LIBRARY_EXODIA_DECK = func() Cards {
 	return y
 }()
 
-type cardsF struct{}
-var CardsF = cardsF{}
-
-func (f *cardsF) New(names ...CardName) (Cards, error) {
-	return fn.MapError[Cards](names, CardF.New)
+func NewCards(names ...CardName) (Cards, error) {
+	return fn.MapError[Cards](names, NewCard)
 }
 
-func (f *cardsF) Names(cards Cards) CardNames {
-	return fn.Map[CardNames](cards, CardF.GetName)
+func GetNamesOfCards(cards Cards) CardNames {
+	return fn.Map[CardNames](cards, GetNameOfCard)
 }
 
-func (f *cardsF) IDs(cards Cards) CardIDs {
-	return fn.Map[CardIDs](cards, CardF.GetID)
+func GetIDsOfCards(cards Cards) CardIDs {
+	return fn.Map[CardIDs](cards, GetIDOfCard)
 }
 
-func (f *cardsF) Clone(cards Cards) Cards {
-	return fn.Map[Cards](cards, CardF.Clone)
+func CloneCards(cards Cards) Cards {
+	return fn.Map[Cards](cards, CloneCard)
 }
 
-func (f *cardsF) TributeSUmmonCosts(cards Cards) []int {
-	return fn.Map[[]int](cards, CardF.TributeSummonCost)
+func TributeSummonCostsOfCards(cards Cards) []int {
+	return fn.Map[[]int](cards, TributeSummonCostOfCard)
+}
+
+func CategoriesOfCards(cards Cards) Categories {
+	y := make(Categories, len(cards))
+	for i, card := range cards {
+		y[i] = CARD_DATA_BASE[card.Name].Category
+	}
+	return y
 }

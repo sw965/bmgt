@@ -4,46 +4,72 @@ import (
 	"math/rand"
 )
 
-type Effect StateChangers
-
-var ZERO_EFFECT = Effect{}
-
-type Effects []Effect
-
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=9778&request_locale=ja
-func NewOneDayOfPeaceEffects(action *Action, r *rand.Rand) Effects {
-	effect0 := Effect{
-		StateChangerF.Draw(1),
-		StateChangerF.ReversePlayer1AndPlayer2,
-		StateChangerF.Draw(1),
-		StateChangerF.ReversePlayer1AndPlayer2,
-		StateChangerF.OneDayOfPeace,
-	}
-	return Effects{effect0}
+func SummonerMonkEffect2(state *State, idx int, r *rand.Rand) {
+	state.P1.Search([]int{idx}, true, r)
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=6541&request_locale=ja
-func NewMagicalMalletEffects(action *Action, r *rand.Rand) Effects {
-	effect0 := Effect{
-		StateChangerF.HandToDeck(action.HandIndices, r),
-		StateChangerF.Draw(len(action.HandIndices)),
-	}
-	return Effects{effect0}
+func ThunderDragonEffect0(state *State, idxs []int, r *rand.Rand) {
+	state.P1.Search(idxs, true, r)
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=5658&request_locale=ja
-func NewRoyalMagicalLibraryEffects(action *Action, r *rand.Rand) Effects {
-	effect0 := ZERO_EFFECT
-	effect1 := Effect{
-		StateChangerF.Draw(1),
-	}
-	return Effects{effect0, effect1}
+func RoyalMagicalLibraryEffect1(state *State) {
+	state.P1.Draw(1)
 }
 
-// https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&cid=4861&request_locale=ja
-func NewSolemnJudgmentEffects(action *Action, r *rand.Rand) Effects {
-	effect0 := Effect{
-		StateChangerF.SolemnJudgment,
+func PotOfGreedEffect0(state *State) {
+	state.P1.Draw(2)
+}
+
+func GatherYourMindEffect0(state *State, idx int, r *rand.Rand) {
+	state.P1.Search([]int{idx}, true, r)
+}
+
+func HandDestructionEffect0(state *State, idxs []int) {
+	state.P1.Discard(idxs)
+	state.P1.Draw(2)
+}
+
+func DoubleSummonEffect0(state *State) {
+	state.P1.IsDoubleSummonApplied = true
+}
+
+func ToonTableOfContentsEffect0(state *State, idx int, r *rand.Rand) {
+	state.P1.Search([]int{idx}, true, r)
+}
+
+func UpStartGoblinEffect0(state *State) {
+	state.P1.Draw(1)
+	state.P2.LifePoint += 1000
+}
+
+func MagicalStoneExcavationEffect0(state *State, ids CardIDs) {
+	state.P1.IDSalvage(ids)
+}
+
+func AllureOfDarknessEffect0(state *State, idx int) bool {
+	if state.P1.EffectProcessingNumber == 1 {
+		state.P1.DiscardBanish([]int{idx})
+		return true
+	} else {
+		state.P1.Draw(2)
+		return false
 	}
-	return Effects{effect0}
+}
+
+func DarkFactoryOfMassProductionEffect0(state *State, ids CardIDs) {
+	state.P1.IDSalvage(ids)
+}
+
+func JarOfGreedEffect0(state *State) {
+	state.P1.Draw(1)
+}
+
+func LegacyOfYataGarasuEffect0(state *State, action *Action) {
+	var draw int
+	if action.EffectSelectNumber == 0 {
+		draw = 1
+	} else {
+		draw = 2
+	}
+	state.P1.Draw(draw)
 }
