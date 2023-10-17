@@ -11,13 +11,3 @@ var (
 	SPELL_PATH   = DATA_PATH + "spell/"
 	TRAP_PATH    = DATA_PATH + "trap/"
 )
-
-const TEMPLATE_JSON_NAME = "テンプレート.json"
-
-func IsTemplateJsonName(name string) bool {
-	return name == TEMPLATE_JSON_NAME
-}
-
-func IsNotTemplateJsonName(name string) bool {
-	return !IsTemplateJsonName(name)
-}
