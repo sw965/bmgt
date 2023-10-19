@@ -8,7 +8,8 @@ import (
 type CardName int
 
 const (
-	EXODIA_THE_FORBIDDEN_ONE CardName = iota
+	NO_NAME CardName = iota
+	EXODIA_THE_FORBIDDEN_ONE
 	RIGHT_LEG_OF_THE_FORBIDDEN_ONE
 	RIGHT_ARM_OF_THE_FORBIDDEN_ONE
 	LEFT_LEG_OF_THE_FORBIDDEN_ONE
@@ -17,6 +18,8 @@ const (
 
 func CardNameToString(cardName CardName) string {
 	switch cardName {
+		case NO_NAME:
+			return "NoName"
 		case EXODIA_THE_FORBIDDEN_ONE:
 			return "封印されしエクゾディア"
 		case RIGHT_LEG_OF_THE_FORBIDDEN_ONE:
@@ -38,6 +41,7 @@ var STRING_TO_CARD_NAME = omwmaps.Reverse[map[string]CardName](CARD_NAME_TO_STRI
 type CardNames []CardName
 
 var CARD_NAMES = CardNames{
+	NO_NAME,
 	EXODIA_THE_FORBIDDEN_ONE,
 	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
 	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
@@ -51,6 +55,10 @@ var EXODIA_PARTS_NAMES = CardNames{
 	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
 	LEFT_LEG_OF_THE_FORBIDDEN_ONE,
 	LEFT_ARM_OF_THE_FORBIDDEN_ONE,
+}
+
+func CardNamesToStrings(names CardNames) []string {
+	return fn.Map[[]string](names, CardNameToString)
 }
 
 type Level int
@@ -81,21 +89,40 @@ func NewCard(name CardName) Card {
 	}
 }
 
+func GetNameOfCard(card Card) CardName {
+	return card.Name
+}
+
+func CloneCard(card Card) Card {
+	return card
+}
+
 func IsEmptyCard(card Card) bool {
 	return card == Card{}
 }
 
 type Cards []Card
 
+func NewCards(names ...CardName) Cards {
+	return fn.Map[Cards](names, NewCard)
+}
+
+func NamesOfCards(cards Cards) CardNames {
+	return fn.Map[CardNames](cards, GetNameOfCard)
+}
+
+func CloneCards(cards Cards) Cards {
+	return fn.Map[Cards](cards, CloneCard)
+}
+
 type BattlePosition int
 
 const (
-	ATK_POSITION BattlePosition = iota
-	FACE_UP_DEF_POSITION
-	FACE_DOWN_DEF_POSITION
+	ATK_BATTLE_POSITION BattlePosition = iota
+	FACE_UP_DEF_BATTLE_POSITION
+	FACE_DOWN_DEF_BATTLE_POSITION
 )
 
 type BattlePositions []BattlePosition
 
-var BATTLE_POSITIONS = BattlePositions{ATK_POSITION, FACE_UP_DEF_POSITION, FACE_DOWN_DEF_POSITION}
-var NORMAL_SUMMON_BATTLE_POSITIONS = BattlePositions{ATK_POSITION, FACE_DOWN_DEF_POSITION}
+var BATTLE_POSITIONS = BattlePositions{ATK_BATTLE_POSITION, FACE_UP_DEF_BATTLE_POSITION, FACE_DOWN_DEF_BATTLE_POSITION}

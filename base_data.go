@@ -40,12 +40,12 @@ type CardDatabase map[CardName]*CardBaseData
 
 var CARD_DATABASE = func() CardDatabase {
 	y := CardDatabase{}
-	entries, err := omwos.NewDirEntries(MONSTER_PATH)
+	entries, err := omwos.NewDirEntries(MONSTER_JSON_PATH)
 	if err != nil {
 		panic(err)
 	}
 	for _, dirName := range entries.Names() {
-		path := MONSTER_PATH + dirName
+		path := MONSTER_JSON_PATH + dirName
 		baseData := LoadCardBaseData(path)
 		cardName := STRING_TO_CARD_NAME[strings.Replace(dirName, ".json", "", 1)]
 		y[cardName] = &baseData

@@ -9,51 +9,89 @@ type ActionType int
 
 const (
 	PHASE_TRANSITION_ACTION ActionType = iota
-	NORMAL_DRAW_ACTION
 	NORMAL_SUMMON_ACTION
 	ATTACK_DECLARE_ACTION
 )
 
+type ActionTypes []ActionType
+
+const LENGTH_OF_BOOLS_OF_ACTIONS = MIN_DECK_NUM
+type BoolsOfAction [LENGTH_OF_BOOLS_OF_ACTIONS]bool
+
 type Action struct {
-	HandIndices []int
-	MonsterZoneIndices1 []int
-	MonsterZoneIndices2 []int
-	BattlePosition BattlePosition
+	Bools1 BoolsOfAction
+	Bools2 BoolsOfAction
 	Phase Phase
+	BattlePosition BattlePosition
 	Type ActionType
 }
 
-func NewPhaseTransitionAction(phase Phase) Action {
-	return Action{Phase:phase, Type:PHASE_TRANSITION_ACTION}
+func GetTypeOfAction(action Action) ActionType {
+	return action.Type
 }
 
-func IsDirectAttackDeclareAction(action Action) bool {
-	return action.Type == ATTACK_DECLARE_ACTION && len(action.MonsterZoneIndices2) == 0
-}
-
-func IsBadAction(state *State) func(action Action) bool {
-	return func(action Action) bool {
-		//エクゾディアパーツを召喚する行為
-		if action.Type == NORMAL_SUMMON_ACTION {
-			idx := action.HandIndices[0]
-			return slices.Contains(EXODIA_PARTS_NAMES, state.P1.Hand[idx].Name)
+func (action *Action) Indices1() []int {
+	idxs := make([]int, 0, LENGTH_OF_BOOLS_OF_ACTIONS)
+	for i, b := range action.Bools1 {
+		if b {
+			idxs = append(idxs, i)
 		}
-		return false
 	}
+	return idxs
+}
+
+func (action *Action) Indices2() []int {
+	idxs := make([]int, 0, LENGTH_OF_BOOLS_OF_ACTIONS)
+	for i, b := range action.Bools2 {
+		if b {
+			idxs = append(idxs, i)
+		}
+	}
+	return idxs
 }
 
 type Actions []Action
 
-//責務として、適切なフェイズ・召喚権は考慮しない
-func NewNormalSummonActions(state *State) Actions {
+func NewLegalPhaseTransitionActions(state *State) Actions {
+	switch state.Phase {
+		case DRAW_PHASE:
+			standby := Action{Phase:STANDBY_PHASE, Type:PHASE_TRANSITION_ACTION}
+			return Actions{standby}
+		case STANDBY_PHASE:
+			main := Action{Phase:MAIN_PHASE, Type:PHASE_TRANSITION_ACTION}
+			return Actions{main}
+		case MAIN_PHASE:
+			battle := Action{Phase:BATTLE_PHASE, Type:PHASE_TRANSITION_ACTION}
+			end := Action{Phase:END_PHASE, Type:PHASE_TRANSITION_ACTION}
+			if state.Turn == 1 {
+				return Actions{end}
+			} else {
+				return Actions{battle, end}
+			}
+		case BATTLE_PHASE:
+			end := Action{Phase:END_PHASE, Type:PHASE_TRANSITION_ACTION}
+			return Actions{end}
+	}
+	return Actions{}
+}
+
+func NewLegalNormalSummonActions(state *State) Actions {
+	if state.Phase != MAIN_PHASE || state.P1.ThisTurnNormalSummonCount != 0 {
+		return Actions{}
+	}
+	poss := BattlePositions{ATK_BATTLE_POSITION, FACE_DOWN_DEF_BATTLE_POSITION}
 	y := make(Actions, 0, len(state.P1.Hand) * MONSTER_ZONE_LENGTH)
 	for i, hCard := range state.P1.Hand {
 		for j, mCard := range state.P1.MonsterZone {
 			if slices.Contains(LOW_LEVELS, hCard.Level) && IsEmptyCard(mCard) {
-				for _, pos := range NORMAL_SUMMON_BATTLE_POSITIONS {
+				for _, pos := range poss {
+					bs1 := BoolsOfAction{}
+					bs1[i] = true
+					bs2 := BoolsOfAction{}
+					bs2[j] = true
 					action := Action{
-						HandIndices:[]int{i},
-						MonsterZoneIndices1:[]int{j},
+						Bools1:bs1,
+						Bools2:bs2,
 						BattlePosition:pos,
 						Type:NORMAL_SUMMON_ACTION,
 					}
@@ -65,64 +103,70 @@ func NewNormalSummonActions(state *State) Actions {
 	return y
 }
 
-func NewDirectAttackDeclareActions(state *State) Actions {
-	if fn.All(state.P2.MonsterZone, IsEmptyCard) {
-		y := make(Actions, 0, MONSTER_ZONE_LENGTH)
-		for i, card := range state.P1.MonsterZone {
-			if !IsEmptyCard(card) {
+func NewLegalAttackDeclareActions(state *State) Actions {
+	if state.Phase != BATTLE_PHASE {
+		return Actions{}
+	}
+
+	y := make(Actions, 0, MONSTER_ZONE_LENGTH * MONSTER_ZONE_LENGTH)
+	for i, p1Card := range state.P1.MonsterZone {
+		for j, p2Card := range state.P2.MonsterZone {
+			if !p1Card.IsAttackDeclared && !IsEmptyCard(p1Card) && !IsEmptyCard(p2Card) {
+				bs1 := BoolsOfAction{}
+				bs1[i] = true
+				bs2 := BoolsOfAction{}
+				bs2[j] = true
 				action := Action{
-					MonsterZoneIndices1:[]int{i},
+					Bools1:bs1,
+					Bools2:bs2,
 					Type:ATTACK_DECLARE_ACTION,
 				}
 				y = append(y, action)
 			}
-			return y
 		}
+	}
+	return y
+}
+
+func NewLegalDirectAttackDeclareActions(state *State) Actions {
+	if state.Phase != BATTLE_PHASE || !fn.All(state.P2.MonsterZone, IsEmptyCard) {
+		return Actions{}
+	}
+	y := make(Actions, 0, MONSTER_ZONE_LENGTH)
+	for i, card := range state.P1.MonsterZone {
+		if !IsEmptyCard(card) && !card.IsAttackDeclared {
+			bs1 := BoolsOfAction{}
+			bs1[i] = true
+			action := Action{
+				Bools1:bs1,
+				Type:ATTACK_DECLARE_ACTION,
+			}
+			y = append(y, action)
+		}
+		return y
 	}
 	return Actions{}
 }
 
-func NewAttackDeclareActions(state *State) Actions {
-	y := make(Actions, 0, (MONSTER_ZONE_LENGTH * MONSTER_ZONE_LENGTH) + MONSTER_ZONE_LENGTH)
-	y = append(y, NewDirectAttackDeclareActions(state)...)
-	for i, p1Card := range state.P1.MonsterZone {
-		for j, p2Card := range state.P2.MonsterZone {
-			if !p1Card.IsAttackDeclared && !IsEmptyCard(p1Card) && !IsEmptyCard(p2Card) {
-				action := Action{
-					MonsterZoneIndices1:[]int{i},
-					MonsterZoneIndices2:[]int{j},
-					Type:ATTACK_DECLARE_ACTION,
-				}
-				y = append(y, action)
-			}
-		}
-	}
+func NewLegalActions(state *State) Actions {
+	phaseTransition := NewLegalPhaseTransitionActions(state)
+	normalSummon := NewLegalNormalSummonActions(state)
+	attackDeclared := NewLegalAttackDeclareActions(state)
+	directAttackDeclare := NewLegalDirectAttackDeclareActions(state)
+
+	n := len(phaseTransition) +
+		len(normalSummon) +
+		len(directAttackDeclare) +
+		len(attackDeclared)
+
+	y := make(Actions, 0, n)
+	y = append(y, phaseTransition...)
+	y = append(y, normalSummon...)
+	y = append(y, directAttackDeclare...)
+	y = append(y, attackDeclared...)
 	return y
 }
 
-func NewLegalActions(state *State) Actions {
-	y := make(Actions, 0, 128)
-	switch state.Phase {
-		case DRAW_PHASE:
-			if !state.P1.IsNormalDrawDone {
-				y = append(y, Action{Type:NORMAL_DRAW_ACTION})
-			} else {
-				y = append(y, NewPhaseTransitionAction(STANDBY_PHASE))
-			}
-		case STANDBY_PHASE:
-			y = append(y, NewPhaseTransitionAction(MAIN_PHASE))
-		case MAIN_PHASE:
-			if state.P1.ThisTurnNormalSummonCount == 0 {
-				y = append(y, NewNormalSummonActions(state)...)
-			}
-			y = append(y, NewPhaseTransitionAction(BATTLE_PHASE))
-			y = append(y, NewPhaseTransitionAction(END_PHASE))
-		case BATTLE_PHASE:
-			if state.P1.AttackDeclareIndex == -1 {
-				y = append(y, NewPhaseTransitionAction(END_PHASE))
-			} else {
-				y = append(y, NewAttackDeclareActions(state)...)
-			}
-	}
-	return y
+func TypesOfActions(actions Actions) ActionTypes {
+	return fn.Map[ActionTypes](actions, GetTypeOfAction)
 }

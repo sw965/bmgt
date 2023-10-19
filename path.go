@@ -6,8 +6,8 @@ import (
 
 var (
 	BMGT_PATH    = omw.SW965_PATH + "bmgt/"
-	DATA_PATH    = BMGT_PATH + "data/"
-	MONSTER_PATH = DATA_PATH + "monster/"
-	SPELL_PATH   = DATA_PATH + "spell/"
-	TRAP_PATH    = DATA_PATH + "trap/"
+	JSON_PATH    = BMGT_PATH + "json/"
+	MONSTER_JSON_PATH = JSON_PATH + "monster/"
+	SPELL_JSON_PATH   = JSON_PATH + "spell/"
+	TRAP_JSON_PATH    = JSON_PATH + "trap/"
 )
