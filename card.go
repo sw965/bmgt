@@ -9,6 +9,9 @@ type CardName int
 
 const (
 	NO_NAME CardName = iota
+	LUSTER_DRAGON
+	GEMINI_ELF
+	VORSE_RAIDER
 	EXODIA_THE_FORBIDDEN_ONE
 	RIGHT_LEG_OF_THE_FORBIDDEN_ONE
 	RIGHT_ARM_OF_THE_FORBIDDEN_ONE
@@ -19,7 +22,13 @@ const (
 func CardNameToString(cardName CardName) string {
 	switch cardName {
 		case NO_NAME:
-			return "NoName"
+			return ""
+		case LUSTER_DRAGON:
+			return "サファイアドラゴン"
+		case GEMINI_ELF:
+			return "ヂェミナイ・エルフ"
+		case VORSE_RAIDER:
+			return "ブラッド・ヴォルス"
 		case EXODIA_THE_FORBIDDEN_ONE:
 			return "封印されしエクゾディア"
 		case RIGHT_LEG_OF_THE_FORBIDDEN_ONE:
@@ -42,6 +51,9 @@ type CardNames []CardName
 
 var CARD_NAMES = CardNames{
 	NO_NAME,
+	LUSTER_DRAGON,
+	GEMINI_ELF,
+	VORSE_RAIDER,
 	EXODIA_THE_FORBIDDEN_ONE,
 	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
 	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
@@ -74,6 +86,7 @@ type Card struct {
 	Atk int
 	Def int
 	BattlePosition BattlePosition
+	IsBattlePositionChangeable bool
 	IsAttackDeclared bool
 }
 
@@ -98,7 +111,7 @@ func CloneCard(card Card) Card {
 }
 
 func IsEmptyCard(card Card) bool {
-	return card == Card{}
+	return card.Name == NO_NAME
 }
 
 type Cards []Card
@@ -122,6 +135,19 @@ const (
 	FACE_UP_DEF_BATTLE_POSITION
 	FACE_DOWN_DEF_BATTLE_POSITION
 )
+
+func BattlePositionToString(pos BattlePosition) string {
+	switch pos {
+		case ATK_BATTLE_POSITION:
+			return "攻撃表示"
+		case FACE_UP_DEF_BATTLE_POSITION:
+			return "表側守備表示"
+		case FACE_DOWN_DEF_BATTLE_POSITION:
+			return "裏側守備表示"
+		default:
+			return ""
+	}
+}
 
 type BattlePositions []BattlePosition
 

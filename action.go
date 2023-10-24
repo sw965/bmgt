@@ -10,8 +10,24 @@ type ActionType int
 const (
 	PHASE_TRANSITION_ACTION ActionType = iota
 	NORMAL_SUMMON_ACTION
+	BATTLE_POSITION_CHANGE_ACTION
 	ATTACK_DECLARE_ACTION
 )
+
+func ActionTypeToString(t ActionType) string {
+	switch t {
+		case PHASE_TRANSITION_ACTION:
+			return "フェイズ移行"
+		case NORMAL_SUMMON_ACTION:
+			return "通常召喚"
+		case BATTLE_POSITION_CHANGE_ACTION:
+			return "表示形式変更"
+		case ATTACK_DECLARE_ACTION:
+			return "攻撃宣言"
+		default:
+			return ""
+	}
+}
 
 type ActionTypes []ActionType
 
@@ -24,10 +40,6 @@ type Action struct {
 	Phase Phase
 	BattlePosition BattlePosition
 	Type ActionType
-}
-
-func GetTypeOfAction(action Action) ActionType {
-	return action.Type
 }
 
 func (action *Action) Indices1() []int {
@@ -48,6 +60,10 @@ func (action *Action) Indices2() []int {
 		}
 	}
 	return idxs
+}
+
+func GetTypeOfAction(action Action) ActionType {
+	return action.Type
 }
 
 type Actions []Action
@@ -79,25 +95,60 @@ func NewLegalNormalSummonActions(state *State) Actions {
 	if state.Phase != MAIN_PHASE || state.P1.ThisTurnNormalSummonCount != 0 {
 		return Actions{}
 	}
+
 	poss := BattlePositions{ATK_BATTLE_POSITION, FACE_DOWN_DEF_BATTLE_POSITION}
-	y := make(Actions, 0, len(state.P1.Hand) * MONSTER_ZONE_LENGTH)
+	y := make(Actions, 0, len(state.P1.Hand) * MONSTER_ZONE_LENGTH * len(poss))
 	for i, hCard := range state.P1.Hand {
 		for j, mCard := range state.P1.MonsterZone {
-			if slices.Contains(LOW_LEVELS, hCard.Level) && IsEmptyCard(mCard) {
+			isLow := slices.Contains(LOW_LEVELS, hCard.Level)
+			isEmpty := IsEmptyCard(mCard) 
+			if isLow && isEmpty {
+				bs1 := BoolsOfAction{}
+				bs1[i] = true
+				bs2 := BoolsOfAction{}
+				bs2[j] = true
+
 				for _, pos := range poss {
-					bs1 := BoolsOfAction{}
-					bs1[i] = true
-					bs2 := BoolsOfAction{}
-					bs2[j] = true
 					action := Action{
 						Bools1:bs1,
 						Bools2:bs2,
 						BattlePosition:pos,
-						Type:NORMAL_SUMMON_ACTION,
+						Type:NORMAL_SUMMON_ACTION,		
 					}
 					y = append(y, action)
 				}
 			}
+		}
+	}
+	return y
+}
+
+func NewLegalBattlePositionChangeActions(state *State) Actions {
+	if state.Phase != MAIN_PHASE {
+		return Actions{}
+	}
+
+	y := make(Actions, 0, MONSTER_ZONE_LENGTH)
+	for i, card := range state.P1.MonsterZone {
+		if !IsEmptyCard(card) && card.IsBattlePositionChangeable {
+			var pos BattlePosition
+			switch card.BattlePosition {
+				case ATK_BATTLE_POSITION:
+					pos = FACE_UP_DEF_BATTLE_POSITION
+				case FACE_UP_DEF_BATTLE_POSITION:
+					pos = ATK_BATTLE_POSITION
+				case FACE_DOWN_DEF_BATTLE_POSITION:
+					pos = ATK_BATTLE_POSITION
+			}
+
+			bs1 := BoolsOfAction{}
+			bs1[i] = true
+			action := Action{
+				Bools1:bs1,
+				BattlePosition:pos,
+				Type:BATTLE_POSITION_CHANGE_ACTION,
+			}
+			y = append(y, action)
 		}
 	}
 	return y
@@ -111,7 +162,9 @@ func NewLegalAttackDeclareActions(state *State) Actions {
 	y := make(Actions, 0, MONSTER_ZONE_LENGTH * MONSTER_ZONE_LENGTH)
 	for i, p1Card := range state.P1.MonsterZone {
 		for j, p2Card := range state.P2.MonsterZone {
-			if !p1Card.IsAttackDeclared && !IsEmptyCard(p1Card) && !IsEmptyCard(p2Card) {
+			isNotEmpty := !IsEmptyCard(p1Card) && !IsEmptyCard(p2Card)
+			canDeclare := !p1Card.IsAttackDeclared && (p1Card.BattlePosition == ATK_BATTLE_POSITION)
+			if isNotEmpty && canDeclare {
 				bs1 := BoolsOfAction{}
 				bs1[i] = true
 				bs2 := BoolsOfAction{}
@@ -134,7 +187,9 @@ func NewLegalDirectAttackDeclareActions(state *State) Actions {
 	}
 	y := make(Actions, 0, MONSTER_ZONE_LENGTH)
 	for i, card := range state.P1.MonsterZone {
-		if !IsEmptyCard(card) && !card.IsAttackDeclared {
+		isNotEmpty := !IsEmptyCard(card)
+		canDeclare := !card.IsAttackDeclared && card.BattlePosition == ATK_BATTLE_POSITION
+		if isNotEmpty && canDeclare {
 			bs1 := BoolsOfAction{}
 			bs1[i] = true
 			action := Action{
@@ -149,19 +204,28 @@ func NewLegalDirectAttackDeclareActions(state *State) Actions {
 }
 
 func NewLegalActions(state *State) Actions {
+	isP2Turn := state.Turn%2 == 0
+	if isP2Turn {
+		stateV := state.Reverse()
+		state = &stateV
+	}
+
 	phaseTransition := NewLegalPhaseTransitionActions(state)
 	normalSummon := NewLegalNormalSummonActions(state)
+	battlePositionChange := NewLegalBattlePositionChangeActions(state)
 	attackDeclared := NewLegalAttackDeclareActions(state)
 	directAttackDeclare := NewLegalDirectAttackDeclareActions(state)
 
 	n := len(phaseTransition) +
 		len(normalSummon) +
+		len(battlePositionChange) +
 		len(directAttackDeclare) +
 		len(attackDeclared)
 
 	y := make(Actions, 0, n)
 	y = append(y, phaseTransition...)
 	y = append(y, normalSummon...)
+	y = append(y, battlePositionChange...)
 	y = append(y, directAttackDeclare...)
 	y = append(y, attackDeclared...)
 	return y

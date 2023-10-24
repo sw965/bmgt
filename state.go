@@ -52,7 +52,6 @@ type OneSideState struct {
 	MonsterZone Cards
 	SpellTrapZone Cards
 	Graveyard Cards
-	IsTurn bool
 	IsNormalDrawDone bool
 	ThisTurnNormalSummonCount int
 	IsDeckDeath bool
@@ -87,14 +86,20 @@ func (atkOSS *OneSideState) Battle(defOSS *OneSideState, atkIdx, defIdx int) {
 		oss.LifePoint -= LifePoint(dmg)
 	}
 
+	attackDeclared := func() {
+		atkOSS.MonsterZone[atkIdx].IsAttackDeclared = true
+	}
+
 	atkCard := atkOSS.MonsterZone[atkIdx]
 	defCard := defOSS.MonsterZone[defIdx]
 
 	if defCard.BattlePosition == ATK_BATTLE_POSITION {
 		if atkCard.Atk > defCard.Atk {
 			destroy(defOSS, defIdx, atkCard.Atk - defCard.Def)
+			attackDeclared()
 		} else if atkCard.Atk < defCard.Atk {
 			destroy(atkOSS, atkIdx, defCard.Atk - atkCard.Atk)
+			attackDeclared()
 		} else {
 			destroy(atkOSS, atkIdx, 0)
 			destroy(defOSS, defIdx, 0)
@@ -103,8 +108,10 @@ func (atkOSS *OneSideState) Battle(defOSS *OneSideState, atkIdx, defIdx int) {
 		defOSS.MonsterZone[defIdx].BattlePosition = FACE_UP_DEF_BATTLE_POSITION
 		if atkCard.Atk > defCard.Def {
 			destroy(defOSS, defIdx, 0)
+			attackDeclared()
 		} else if atkCard.Atk < defCard.Def {
 			atkOSS.LifePoint -= LifePoint(defCard.Def - atkCard.Atk)
+			attackDeclared()
 		}
 	}
 }
@@ -116,25 +123,34 @@ type State struct {
 	Turn int
 }
 
-func NewInitState(p1Deck, p2Deck Cards, r *rand.Rand) State {
+func NewInitState(p1Deck, p2Deck Cards, isStartDraw bool, r *rand.Rand) State {
 	p1 := NewInitOneSideState(p1Deck, r)
-	p1.IsTurn = true
 	p2 := NewInitOneSideState(p2Deck, r)
-	return State{P1:p1, P2:p2, Phase:DRAW_PHASE, Turn:1}
+	state := State{P1:p1, P2:p2, Phase:DRAW_PHASE, Turn:1}
+	if isStartDraw {
+		state.P1.Draw(1)
+	}
+	return state
 }
 
 func (state *State) Reverse() State {
 	return State{P1:state.P2, P2:state.P1, Phase:state.Phase, Turn:state.Turn}
 }
 
+func (state *State) IsP1Turn() bool {
+	return state.Turn%2 == 1
+}
+
 func (state *State) ChangeTurn() {
 	state.P1.ThisTurnNormalSummonCount = 0
+	for i := 0; i < MONSTER_ZONE_LENGTH; i++ {
+		state.P1.MonsterZone[i].IsBattlePositionChangeable = true
+	}
+
 	for i := 0; i < MONSTER_ZONE_LENGTH; i++ {
 		state.P1.MonsterZone[i].IsAttackDeclared = false
 	}
 
-	state.P1.IsTurn = false
-	state.P2.IsTurn = true
 	state.Turn += 1
 	state.Phase = DRAW_PHASE
 
@@ -145,6 +161,12 @@ func (state *State) ChangeTurn() {
 	}
 }
 
+func (state *State) ChangeBattlePosition(action *Action) {
+	idx := action.Indices1()[0]
+	state.P1.MonsterZone[idx].BattlePosition = action.BattlePosition
+	state.P1.MonsterZone[idx].IsBattlePositionChangeable = false
+}
+
 func (state *State) NormalSummon(action *Action) {
 	handIdx := action.Indices1()[0]
 	mZoneIdx := action.Indices2()[0]
@@ -153,6 +175,7 @@ func (state *State) NormalSummon(action *Action) {
 	state.P1.Hand = newHand
 	state.P1.MonsterZone[mZoneIdx] = summonCards[0]
 	state.P1.MonsterZone[mZoneIdx].BattlePosition = action.BattlePosition
+	state.P1.MonsterZone[mZoneIdx].IsBattlePositionChangeable = false
 	state.P1.ThisTurnNormalSummonCount += 1
 }
 
@@ -172,11 +195,18 @@ func (state *State) AttackDeclare(action *Action) {
 func Push(state State, action Action) State {
 	state.P1.Deck = CloneCards(state.P1.Deck)
 	state.P1.Hand = CloneCards(state.P1.Hand)
+	state.P1.MonsterZone = CloneCards(state.P1.MonsterZone)
 	state.P1.Graveyard = CloneCards(state.P1.Graveyard)
 
 	state.P2.Deck = CloneCards(state.P2.Deck)
 	state.P2.Hand = CloneCards(state.P2.Hand)
+	state.P2.MonsterZone = CloneCards(state.P2.MonsterZone)
 	state.P2.Graveyard = CloneCards(state.P2.Graveyard)
+
+	isP2Turn := !state.IsP1Turn()
+	if isP2Turn {
+		state = state.Reverse()
+	}
 
 	switch action.Type {
 		case PHASE_TRANSITION_ACTION:
@@ -186,8 +216,14 @@ func Push(state State, action Action) State {
 			}
 		case NORMAL_SUMMON_ACTION:
 			state.NormalSummon(&action)
+		case BATTLE_POSITION_CHANGE_ACTION:
+			state.ChangeBattlePosition(&action)
 		case ATTACK_DECLARE_ACTION:
 			state.AttackDeclare(&action)
+	}
+
+	if isP2Turn {
+		state = state.Reverse()
 	}
 	return state
 }
