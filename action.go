@@ -66,6 +66,43 @@ func GetTypeOfAction(action Action) ActionType {
 	return action.Type
 }
 
+func IsBadAction(state *State) func(Action) bool {
+	return func(action Action) bool {
+		switch action.Type {
+			case NORMAL_SUMMON_ACTION:
+				idxs := action.Indices1()
+				card := state.P1.Hand[idxs[0]]
+				switch card.Name {
+					case LUSTER_DRAGON:
+						return action.BattlePosition != ATK_BATTLE_POSITION
+					case GEMINI_ELF:
+						return action.BattlePosition != ATK_BATTLE_POSITION
+					case VORSE_RAIDER:
+						return action.BattlePosition != ATK_BATTLE_POSITION
+				}
+			case ATTACK_DECLARE_ACTION:
+				idxs1 := action.Indices1()
+				idxs2 := action.Indices2()
+				if len(idxs2) != 0 {
+					p1Card := state.P1.MonsterZone[idxs1[0]]
+					p2Card := state.P2.MonsterZone[idxs2[0]]
+					if p2Card.BattlePosition == ATK_BATTLE_POSITION {
+						if p1Card.Atk < p2Card.Atk {
+							return true
+						}
+					}
+				}
+		}
+		return false
+	}
+}
+
+func IsNotBadAction(state *State) func(Action) bool {
+	return func(action Action) bool {
+		return !IsBadAction(state)(action)
+	}
+}
+
 type Actions []Action
 
 func NewLegalPhaseTransitionActions(state *State) Actions {

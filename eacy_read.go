@@ -12,7 +12,8 @@ type EasyReadCard struct {
 	Atk int
 	Def int
 	BattlePosition string
-	IsAttackDeclared bool
+	ID CardID
+	IsP1 bool
 }
 
 func CardToEasyRead(card Card) EasyReadCard {
@@ -24,7 +25,8 @@ func CardToEasyRead(card Card) EasyReadCard {
 		Atk:card.Atk,
 		Def:card.Def,
 		BattlePosition:BattlePositionToString(card.BattlePosition),
-		IsAttackDeclared:card.IsAttackDeclared,
+		ID:card.ID,
+		IsP1:card.IsP1,
 	}
 }
 
@@ -90,6 +92,7 @@ type EasyReadState struct {
 	P2 EasyReadOneSideState
 	Phase string
 	Turn int
+	IsP1Turn bool
 }
 
 func StateToEasyRead(state State) EasyReadState {
@@ -98,5 +101,6 @@ func StateToEasyRead(state State) EasyReadState {
 		P2:OneSideStateToEasyRead(state.P2),
 		Phase:PhaseToString(state.Phase),
 		Turn:state.Turn,
+		IsP1Turn:state.IsP1Turn(),
 	}
 }

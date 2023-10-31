@@ -3,6 +3,7 @@ package bmgt
 import (
 	omwrand "github.com/sw965/omw/rand"
 	omwslices "github.com/sw965/omw/slices"
+	"github.com/sw965/omw/fn"
 	"math/rand"
 )
 
@@ -57,7 +58,8 @@ type OneSideState struct {
 	IsDeckDeath bool
 }
 
-func NewInitOneSideState(deck Cards, r *rand.Rand) OneSideState {
+func NewInitOneSideState(deck Cards, start CardID, r *rand.Rand) OneSideState {
+	deck = fn.MapIndex[Cards](deck, SetIDOfCard, start)
 	shuffledDeck := omwrand.Shuffled(deck, r)
 	newDeck := shuffledDeck[INIT_HAND_NUM:]
 	hand := shuffledDeck[:INIT_HAND_NUM]
@@ -124,8 +126,10 @@ type State struct {
 }
 
 func NewInitState(p1Deck, p2Deck Cards, isStartDraw bool, r *rand.Rand) State {
-	p1 := NewInitOneSideState(p1Deck, r)
-	p2 := NewInitOneSideState(p2Deck, r)
+	p1Deck = fn.Map[Cards](p1Deck, SetIsP1OfCard(true))
+	p2Deck = fn.Map[Cards](p2Deck, SetIsP1OfCard(false))
+	p1 := NewInitOneSideState(p1Deck, 1, r)
+	p2 := NewInitOneSideState(p2Deck, CardID(len(p1Deck)+1), r)
 	state := State{P1:p1, P2:p2, Phase:DRAW_PHASE, Turn:1}
 	if isStartDraw {
 		state.P1.Draw(1)

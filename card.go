@@ -88,6 +88,8 @@ type Card struct {
 	BattlePosition BattlePosition
 	IsBattlePositionChangeable bool
 	IsAttackDeclared bool
+	ID CardID
+	IsP1 bool
 }
 
 func NewCard(name CardName) Card {
@@ -104,6 +106,18 @@ func NewCard(name CardName) Card {
 
 func GetNameOfCard(card Card) CardName {
 	return card.Name
+}
+
+func SetIDOfCard(id CardID, card Card) Card {
+	card.ID = id
+	return card
+}
+
+func SetIsP1OfCard(isP1 bool) func(Card)Card {
+	return func(card Card) Card {
+		card.IsP1 = isP1
+		return card
+	}
 }
 
 func CloneCard(card Card) Card {
@@ -152,3 +166,6 @@ func BattlePositionToString(pos BattlePosition) string {
 type BattlePositions []BattlePosition
 
 var BATTLE_POSITIONS = BattlePositions{ATK_BATTLE_POSITION, FACE_UP_DEF_BATTLE_POSITION, FACE_DOWN_DEF_BATTLE_POSITION}
+
+type CardID int
+type CardIDs []CardID
