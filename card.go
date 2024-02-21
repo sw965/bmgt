@@ -1,171 +1,75 @@
 package bmgt
 
 import (
-	"github.com/sw965/omw/fn"
-	omwmaps "github.com/sw965/omw/maps"
+	"golang.org/x/exp/slices"
 )
 
 type CardName int
 
 const (
 	NO_NAME CardName = iota
-	LUSTER_DRAGON
-	GEMINI_ELF
-	VORSE_RAIDER
-	EXODIA_THE_FORBIDDEN_ONE
-	RIGHT_LEG_OF_THE_FORBIDDEN_ONE
-	RIGHT_ARM_OF_THE_FORBIDDEN_ONE
-	LEFT_LEG_OF_THE_FORBIDDEN_ONE
-	LEFT_ARM_OF_THE_FORBIDDEN_ONE
+	DARK_MAGICIAN_GIRL
 )
 
-func CardNameToString(cardName CardName) string {
-	switch cardName {
-		case NO_NAME:
-			return ""
-		case LUSTER_DRAGON:
-			return "サファイアドラゴン"
-		case GEMINI_ELF:
-			return "ヂェミナイ・エルフ"
-		case VORSE_RAIDER:
-			return "ブラッド・ヴォルス"
-		case EXODIA_THE_FORBIDDEN_ONE:
-			return "封印されしエクゾディア"
-		case RIGHT_LEG_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の右足"
-		case RIGHT_ARM_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の右腕"
-		case LEFT_LEG_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の左足"
-		case LEFT_ARM_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の左腕"
-		default:
-			return ""
-	}
-}
-
-var CARD_NAME_TO_STRING = fn.Memo[map[CardName]string](CARD_NAMES, CardNameToString)
-var STRING_TO_CARD_NAME = omwmaps.Reverse[map[string]CardName](CARD_NAME_TO_STRING)
-
-type CardNames []CardName
-
-var CARD_NAMES = CardNames{
-	NO_NAME,
-	LUSTER_DRAGON,
-	GEMINI_ELF,
-	VORSE_RAIDER,
-	EXODIA_THE_FORBIDDEN_ONE,
-	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
-	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
-	LEFT_LEG_OF_THE_FORBIDDEN_ONE,
-	LEFT_ARM_OF_THE_FORBIDDEN_ONE,
-}
-
-var EXODIA_PARTS_NAMES = CardNames{
-	EXODIA_THE_FORBIDDEN_ONE,
-	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
-	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
-	LEFT_LEG_OF_THE_FORBIDDEN_ONE,
-	LEFT_ARM_OF_THE_FORBIDDEN_ONE,
-}
-
-func CardNamesToStrings(names CardNames) []string {
-	return fn.Map[[]string](names, CardNameToString)
-}
-
 type Level int
+
 type Levels []Level
 
 var LOW_LEVELS = Levels{1, 2, 3, 4}
 
+type Attribute int
+
+const (
+	DARK Attribute = iota
+	LIGHT
+	EARTH
+	WATER
+	FIRE
+	WIND
+)
+
+type Type int
+
+const (
+	DRAGON Attribute = iota
+	SPELLCASTET // 魔法使い
+	ZOMBIE //アンデット
+	WARRIOR //戦士
+	BEAST_WARRIOR
+	BEAST
+	WINGED_BEAST //鳥獣
+	FIEND //悪魔
+	FAIRY
+	INSECT
+	DINOSAUR //恐竜
+	REPTILE //爬虫類
+	FISH
+	SEA_SERPENT //海竜
+	MACHINE
+	THUNDER
+	AQUA
+	PYRO
+	ROCK
+	PLANT
+	PSYCHIC
+	WYRM
+	CYBERSE
+	ILLUSION
+	DIVINE_BEAST //幻神獣(三幻神)
+	CREATOR_GOD //創造神(ホルアクティ)
+)
+
 type Card struct {
 	Name CardName
-	Attribute Attribute
 	Level Level
+	Attribute Attribute
 	Type Type
 	Atk int
 	Def int
-	BattlePosition BattlePosition
-	IsBattlePositionChangeable bool
-	IsAttackDeclared bool
-	ID CardID
-	IsP1 bool
 }
 
-func NewCard(name CardName) Card {
-	data := CARD_DATABASE[name]
-	return Card{
-		Name:name,
-		Attribute:data.Attribute,
-		Level:data.Level,
-		Type:data.Type,
-		Atk:data.Atk,
-		Def:data.Def,
-	}
-}
-
-func GetNameOfCard(card Card) CardName {
-	return card.Name
-}
-
-func SetIDOfCard(id CardID, card Card) Card {
-	card.ID = id
-	return card
-}
-
-func SetIsP1OfCard(isP1 bool) func(Card)Card {
-	return func(card Card) Card {
-		card.IsP1 = isP1
-		return card
-	}
-}
-
-func CloneCard(card Card) Card {
-	return card
-}
-
-func IsEmptyCard(card Card) bool {
-	return card.Name == NO_NAME
+func CanNormalSummonCard(card Card) bool {
+	return slices.Contains(LOW_LEVELS, card.Level)
 }
 
 type Cards []Card
-
-func NewCards(names ...CardName) Cards {
-	return fn.Map[Cards](names, NewCard)
-}
-
-func NamesOfCards(cards Cards) CardNames {
-	return fn.Map[CardNames](cards, GetNameOfCard)
-}
-
-func CloneCards(cards Cards) Cards {
-	return fn.Map[Cards](cards, CloneCard)
-}
-
-type BattlePosition int
-
-const (
-	ATK_BATTLE_POSITION BattlePosition = iota
-	FACE_UP_DEF_BATTLE_POSITION
-	FACE_DOWN_DEF_BATTLE_POSITION
-)
-
-func BattlePositionToString(pos BattlePosition) string {
-	switch pos {
-		case ATK_BATTLE_POSITION:
-			return "攻撃表示"
-		case FACE_UP_DEF_BATTLE_POSITION:
-			return "表側守備表示"
-		case FACE_DOWN_DEF_BATTLE_POSITION:
-			return "裏側守備表示"
-		default:
-			return ""
-	}
-}
-
-type BattlePositions []BattlePosition
-
-var BATTLE_POSITIONS = BattlePositions{ATK_BATTLE_POSITION, FACE_UP_DEF_BATTLE_POSITION, FACE_DOWN_DEF_BATTLE_POSITION}
-
-type CardID int
-type CardIDs []CardID
