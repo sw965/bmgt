@@ -2,6 +2,7 @@ package bmgt
 
 import (
 	"golang.org/x/exp/slices"
+	"github.com/sw965/omw/fn"
 )
 
 type CardName int
@@ -59,6 +60,35 @@ const (
 	CREATOR_GOD //創造神(ホルアクティ)
 )
 
+type Face int
+
+const (
+	FACE_UP Face = iota
+	FACE_DOWN
+)
+
+type Orientation int
+
+const (
+	VERTICAL Orientation = iota
+	HORIZONTAL
+)
+
+type BattlePosition int
+
+const (
+	FACE_UP_ATTACK_POSITION BattlePosition = iota
+	FACE_UP_DEFENSE_POSITION
+	FACE_DOWN_DEFENSE_POSITION
+)
+
+func NewBattlePosition(face Face, o Orientation) BattlePosition {
+	return map[Face]map[Orientation]BattlePosition{
+		FACE_UP:map[Orientation]BattlePosition{VERTICAL:FACE_UP_ATTACK_POSITION, HORIZONTAL:FACE_UP_DEFENSE_POSITION},
+		FACE_DOWN:map[Orientation]BattlePosition{HORIZONTAL:FACE_DOWN_DEFENSE_POSITION},
+	}[face][o]
+}
+
 type Card struct {
 	Name CardName
 	Level Level
@@ -66,6 +96,35 @@ type Card struct {
 	Type Type
 	Atk int
 	Def int
+	Face Face
+	Orientation Orientation
+}
+
+func (card *Card) BattlePosition() BattlePosition {
+	return NewBattlePosition(card.Face, card.Orientation)
+}
+
+func (card *Card) SetBattlePosition(pos BattlePosition) {
+	upAtk := func() {
+		card.Face = FACE_UP
+		card.Orientation = VERTICAL
+	}
+
+	upDef := func() {
+		card.Face = FACE_UP
+		card.Orientation = HORIZONTAL
+	}
+
+	downDef := func() {
+		card.Face = FACE_DOWN
+		card.Orientation = HORIZONTAL
+	}
+
+	map[BattlePosition]func(){
+		FACE_UP_ATTACK_POSITION:upAtk,
+		FACE_UP_DEFENSE_POSITION:upDef,
+		FACE_DOWN_DEFENSE_POSITION:downDef,
+	}[pos]()
 }
 
 func CanNormalSummonCard(card Card) bool {
@@ -73,3 +132,7 @@ func CanNormalSummonCard(card Card) bool {
 }
 
 type Cards []Card
+
+func (cards Cards) IsAllEmpty() bool {
+	return fn.All(cards, func(card Card) bool { return card.Name == NO_NAME })
+}

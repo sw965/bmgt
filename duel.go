@@ -3,14 +3,21 @@ package bmgt
 import (
 	"math/rand"
 	omwrand "github.com/sw965/omw/rand"
-	omwslices "github.com/sw965/omw/slices"
-	"github.com/sw965/omw/fn"
 )
 
 const (
 	INIT_DRAW = 5
 	MONSTER_ZONE_LENGTH = 5
 	SPELL_TRAP_ZONE_LENGTH = 5
+)
+
+const (
+	DRAW_PHASE_INDEX = iota
+	STANDBY_PHASE_INDEX
+	MAIN1_PHASE_INDEX
+	BATTLE_PHASE_INDEX
+	MAIN2_PHASE_INDEX
+	END_PHASE_INDEX
 )
 
 type LifePoint int
@@ -30,7 +37,7 @@ const (
 	END_PHASE
 )
 
-type Phases []Phases
+type Phases []Phase
 
 var PHASES = Phases{DRAW_PHASE, STANDBY_PHASE, MAIN1_PHASE, BATTLE_PHASE, MAIN2_PHASE, END_PHASE}
 
@@ -52,7 +59,7 @@ func NewOneSideDuelState(deck Cards, r *rand.Rand) OneSideDuelState {
 		Hand:hand, Deck:deck,
 		MonsterZone:make(Cards, MONSTER_ZONE_LENGTH),
 		SpellTrapZone:make(Cards, SPELL_TRAP_ZONE_LENGTH),
-		Graveyard:make(Cards, len(deck) + len(hand)),
+		Graveyard:make(Cards, 0, len(deck) + len(hand)),
 	}
 }
 
@@ -68,48 +75,75 @@ func NewDuel(p1Deck, p2Deck Cards, r *rand.Rand) Duel {
 	return Duel{P1:p1, P2:p2}
 }
 
-type ActionType int
-
-const (
-	PHASE_TRANSITION_ACTION ActionType = iota
-	NORMAL_SUMMON_ACTION
-)
-
-type Action struct {
-	N1 int
-	N2 int
-	Type ActionType
+func (duel *Duel) Reverse() {
+	p1 := duel.P1
+	p2 := duel.P2
+	duel.P1 = p2
+	duel.P2 = p1
 }
 
-type Actions []*Action
+func(duel *Duel) DestructionByBattle(i int) {
+	card := duel.P1.MonsterZone[i]
+	duel.P1.Graveyard = append(duel.P1.Graveyard, card)
+	duel.P1.MonsterZone[i] = Card{}
+}
 
-func NewPhaseTransitionActions() Actions {
+func (duel *Duel) Battle(action *Action) {
+	attacker := duel.P1.MonsterZone[action.N1]
+	defender := duel.P2.MonsterZone[action.N2]
+	dbp := defender.BattlePosition()
+	atkV := attacker.Atk
+	defV := map[BattlePosition]int{
+		FACE_UP_ATTACK_POSITION:defender.Atk,
+		FACE_UP_DEFENSE_POSITION:defender.Def,
+		FACE_DOWN_DEFENSE_POSITION:defender.Def,
+	}[dbp]
 	
-}
+	p1Dmg := 0
+	p2Dmg := 0
+	destroyP1 := false
+	destroyP2 := false
 
-func NewNormalSummonActions(duel *Duel) Actions {
-	is := omwslices.NewSequentialInteger[[]int](0, len(duel.P1.Hand))
-	js := omwslices.NewSequentialInteger[[]int](0, MONSTER_ZONE_LENGTH)
-	f := func(i, j int) *Action {
-		return &Action{N1:i, N2:j, Type:NORMAL_SUMMON_ACTION}
+	changeBattlePosition := func() {
+		duel.P2.MonsterZone[action.N2].SetBattlePosition(FACE_DOWN_DEFENSE_POSITION)
 	}
-	return omwslices.Product2[[]int, []int, Actions](is, js, f)
-}
 
-func IsNormalAction(duel *Duel) func(*Action) bool {
-	return func(action *Action) bool {	
-		if !CanNormalSummonCard(duel.P1.Hand[action.N1]) {
-			return false
-		}
-
-		if duel.P1.MonsterZone[action.N2].Name == NO_NAME {
-			return false
-		}
-		return  true
+	destroyP2Func := func() {
+		duel.Reverse()
+		duel.DestructionByBattle(action.N2)
+		duel.Reverse()
 	}
-}
 
-func NewNormalSummonLegalActions(duel *Duel) Actions {
-	as := NewNormalSummonActions(duel)
-	return fn.Filter(as, IsNormalAction(duel))
+	if atkV > defV {
+		destroyP2 = true
+		if dbp == FACE_UP_ATTACK_POSITION {
+			p2Dmg = atkV - defV 
+		}
+	} else if atkV < defV {
+		destroyP1 = true
+		if dbp == FACE_UP_ATTACK_POSITION {
+			p1Dmg = defV - atkV
+		}
+	} else {
+		if dbp == FACE_UP_ATTACK_POSITION {
+			destroyP1 = true
+			destroyP2 = true
+		}
+	}
+
+	if dbp == FACE_DOWN_DEFENSE_POSITION {
+		changeBattlePosition()
+	}
+
+	duel.P1.LifePoint -= LifePoint(p1Dmg)
+	duel.P2.LifePoint -= LifePoint(p2Dmg)
+
+	if destroyP1 && destroyP2 {
+		duel.DestructionByBattle(action.N1)
+		destroyP2Func()
+	} else if destroyP1 {
+		duel.DestructionByBattle(action.N1)
+	} else if destroyP2 {
+		destroyP2Func()
+	}
 }
