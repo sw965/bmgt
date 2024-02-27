@@ -6,5 +6,5 @@ import (
 )
 
 func Test(t *testing.T) {
-	//NewNormalSummonLegalActions()
+	hand := 
 }

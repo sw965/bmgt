@@ -90,3 +90,9 @@ func NewLegalDirectAttackDeclarationActions(duel *Duel) Actions {
 	as := newDirectAttackDeclarationActions(duel)
 	return fn.Filter(as, IsLegalDirectAttackDeclarationActions(duel))
 }
+
+func NewHandSpellSpeed1Card() Actions {
+	for _, card := range duel.P1.Hand {
+		HAND_SPELL_SPEED1[card.Name]
+	}
+}

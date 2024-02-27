@@ -63,6 +63,25 @@ func NewOneSideDuelState(deck Cards, r *rand.Rand) OneSideDuelState {
 	}
 }
 
+func (osds *OneSideDuelState) Draw(num int) {
+	drawCards := osds.Deck[:num]
+	deck = osds.Deck[num:]
+	osds.Hand = append(osds.Hand, drawCards...)
+}
+
+func (osds *OneSideDuelState) Discard(idxs []int) {
+	n := len(osds.Hand)
+	newHand := make(Cards, n - len(idxs))
+	for i := 0; i < n; i++ {
+		if slices.Contains(idxs, i) {
+			osds.Graveyard = append(osds.Graveyard)
+		} else {
+			newHand = append(newHand, osds.Hand[i])
+		}
+	}
+	osds.Hand = newHand
+}
+
 type Duel struct {
 	P1 OneSideDuelState
 	P2 OneSideDuelState

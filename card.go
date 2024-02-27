@@ -10,7 +10,49 @@ type CardName int
 const (
 	NO_NAME CardName = iota
 	DARK_MAGICIAN_GIRL
+
+	EXODIA_THE_FORBIDDEN_ONE
+	LEFT_ARM_OF_THE_FORBIDDEN_ONE
+	LEFT_LEG_OF_THE_FORBIDDEN_ONE
+	RIGHT_ARM_OF_THE_FORBIDDEN_ONE
+	RIGHT_LEG_OF_THE_FORBIDDEN_ONE
+
+	POT_OF_GREED
+	MAGICAL_STONE_EXCAVATION
 )
+
+var CARD_NAME_TO_STRING()
+
+func CardNameToString(name CardName) string {
+	switch name {
+		case NO_NAME:
+			return ""
+		case DARK_MAGICIAN_GIRL:
+			return "ブラック・マジシャン・ガール"
+		case EXODIA_THE_FORBIDDEN_ONE:
+			return "封印されしエクゾディア"
+		case LEFT_ARM_OF_THE_FORBIDDEN_ONE:
+			return "封印されし者の左腕"
+		case LEFT_LEG_OF_THE_FORBIDDEN_ONE:
+			return "封印されし者の左足"
+		case RIGHT_ARM_OF_THE_FORBIDDEN_ONE:
+			return "封印されし者の右腕"
+		case RIGHT_LEG_OF_THE_FORBIDDEN_ONE:
+			return "封印されし者の右足"
+		case POT_OF_GREED:
+			return "強欲な壺"
+		case MAGICAL_STONE_EXCAVATION:
+			return "魔法石の採掘"
+		default:
+			return "存在しないカード名"
+	}
+}
+
+func StringToCardName(s string) CardName {
+	
+}
+
+type CardNames []CardName
 
 type Level int
 
@@ -127,11 +169,19 @@ func (card *Card) SetBattlePosition(pos BattlePosition) {
 	}[pos]()
 }
 
+func GetNameOfCard(card Card) CardName {
+	return card.Name
+}
+
 func CanNormalSummonCard(card Card) bool {
 	return slices.Contains(LOW_LEVELS, card.Level)
 }
 
 type Cards []Card
+
+func (cards Cards) GetNames() CardNames {
+	return fn.Map(cards, GetNameOfCard)
+}
 
 func (cards Cards) IsAllEmpty() bool {
 	return fn.All(cards, func(card Card) bool { return card.Name == NO_NAME })
