@@ -2,6 +2,7 @@ package bmgt
 
 import (
 	"golang.org/x/exp/slices"
+	omwmaps "github.com/sw965/omw/maps"
 	"github.com/sw965/omw/fn"
 )
 
@@ -21,38 +22,17 @@ const (
 	MAGICAL_STONE_EXCAVATION
 )
 
-var CARD_NAME_TO_STRING()
-
-func CardNameToString(name CardName) string {
-	switch name {
-		case NO_NAME:
-			return ""
-		case DARK_MAGICIAN_GIRL:
-			return "ブラック・マジシャン・ガール"
-		case EXODIA_THE_FORBIDDEN_ONE:
-			return "封印されしエクゾディア"
-		case LEFT_ARM_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の左腕"
-		case LEFT_LEG_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の左足"
-		case RIGHT_ARM_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の右腕"
-		case RIGHT_LEG_OF_THE_FORBIDDEN_ONE:
-			return "封印されし者の右足"
-		case POT_OF_GREED:
-			return "強欲な壺"
-		case MAGICAL_STONE_EXCAVATION:
-			return "魔法石の採掘"
-		default:
-			return "存在しないカード名"
-	}
-}
-
-func StringToCardName(s string) CardName {
-	
-}
+var STRING_TO_CARD_NAME = omwmaps.Reverse[map[string]CardName](CARD_NAME_TO_STRING)
 
 type CardNames []CardName
+
+var EXODIA_PARTS_NAMES = CardNames{
+	EXODIA_THE_FORBIDDEN_ONE,
+	LEFT_ARM_OF_THE_FORBIDDEN_ONE,
+	LEFT_LEG_OF_THE_FORBIDDEN_ONE,
+	RIGHT_ARM_OF_THE_FORBIDDEN_ONE,
+	RIGHT_LEG_OF_THE_FORBIDDEN_ONE,
+}
 
 type Level int
 
@@ -71,10 +51,12 @@ const (
 	WIND
 )
 
+var STRING_TO_ATTRIBUTE = omwmaps.Reverse[map[string]Attribute](ATTRIBUTE_TO_STRING)
+
 type Type int
 
 const (
-	DRAGON Attribute = iota
+	DRAGON Type = iota
 	SPELLCASTET // 魔法使い
 	ZOMBIE //アンデット
 	WARRIOR //戦士
@@ -95,12 +77,14 @@ const (
 	ROCK
 	PLANT
 	PSYCHIC
-	WYRM
-	CYBERSE
-	ILLUSION
+	WYRM //幻竜
+	CYBERSE //サイバース
+	ILLUSION //幻想魔
 	DIVINE_BEAST //幻神獣(三幻神)
 	CREATOR_GOD //創造神(ホルアクティ)
 )
+
+var STRING_TO_TYPE = omwmaps.Reverse[map[string]Type](TYPE_TO_STRING)
 
 type Face int
 
@@ -109,12 +93,34 @@ const (
 	FACE_DOWN
 )
 
+func (face Face) ToString() string {
+	switch face {
+		case FACE_UP:
+			return "表"
+		case FACE_DOWN:
+			return "裏"
+		default:
+			return ""
+	}
+}
+
 type Orientation int
 
 const (
 	VERTICAL Orientation = iota
 	HORIZONTAL
 )
+
+func (o Orientation) ToString() string {
+	switch o {
+		case VERTICAL:
+			return "縦"
+		case HORIZONTAL:
+			return "裏"
+		default:
+			return ""
+	}
+}
 
 type BattlePosition int
 
@@ -131,6 +137,8 @@ func NewBattlePosition(face Face, o Orientation) BattlePosition {
 	}[face][o]
 }
 
+type CardID int
+
 type Card struct {
 	Name CardName
 	Level Level
@@ -140,6 +148,25 @@ type Card struct {
 	Def int
 	Face Face
 	Orientation Orientation
+	ID CardID
+}
+
+func NewCard(name CardName) Card {
+	if name == NO_NAME {
+		return Card{}
+	} else {
+		y := Card{}
+		data := CARD_DATA_BASE[name]
+		y.Name = name
+		y.Level = data.Level
+		y.Attribute = data.Attribute
+		y.Type = data.Type
+		y.Atk = data.Atk
+		y.Def = data.Def
+		y.Face = FACE_DOWN
+		y.Orientation = VERTICAL
+		return y
+	}
 }
 
 func (card *Card) BattlePosition() BattlePosition {
@@ -179,8 +206,12 @@ func CanNormalSummonCard(card Card) bool {
 
 type Cards []Card
 
-func (cards Cards) GetNames() CardNames {
-	return fn.Map(cards, GetNameOfCard)
+func NewCards(names ...CardName) Cards {
+	return fn.Map[Cards](names, NewCard)
+}
+
+func (cards Cards) Names() CardNames {
+	return fn.Map[CardNames](cards, GetNameOfCard)
 }
 
 func (cards Cards) IsAllEmpty() bool {

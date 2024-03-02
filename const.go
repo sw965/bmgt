@@ -1,0 +1,6 @@
+package bmgt
+
+const (
+	POT_OF_GREED_DRAW_NUM = 2
+	MAGICAL_STONE_EXCAVATION_COST = 2
+)

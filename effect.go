@@ -6,7 +6,7 @@ type Effects []Effect
 func NewPotOfGreedEffects() Effects {
 	var effect0 Effect
 	effect0 = func(duel *Duel) {
-		duel.Draw(2)
+		duel.P1.Draw(POT_OF_GREED_DRAW_NUM)
 	}
 	return Effects{effect0}
 }

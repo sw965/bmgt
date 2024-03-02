@@ -2,7 +2,10 @@ package bmgt
 
 import (
 	"math/rand"
+	"golang.org/x/exp/slices"
 	omwrand "github.com/sw965/omw/rand"
+	omwslices "github.com/sw965/omw/slices"
+	"github.com/sw965/omw/fn"
 )
 
 const (
@@ -37,11 +40,30 @@ const (
 	END_PHASE
 )
 
+func (phase Phase) ToString() string {
+	switch phase {
+		case DRAW_PHASE:
+			return "ドローフェイズ"
+		case STANDBY_PHASE:
+			return "スタンバイフェイズ"
+		case MAIN1_PHASE:
+			return "メイン1フェイズ"
+		case BATTLE_PHASE:
+			return "バトルフェイズ"
+		case MAIN2_PHASE:
+			return "メイン2フェイズ"
+		case END_PHASE:
+			return "エンドフェイズ"
+		default:
+			return ""
+	}
+}
+
 type Phases []Phase
 
 var PHASES = Phases{DRAW_PHASE, STANDBY_PHASE, MAIN1_PHASE, BATTLE_PHASE, MAIN2_PHASE, END_PHASE}
 
-type OneSideDuelState struct {
+type OneSide struct {
 	LifePoint LifePoint
 	Hand Cards
 	Deck Cards
@@ -50,11 +72,11 @@ type OneSideDuelState struct {
 	Graveyard Cards
 }
 
-func NewOneSideDuelState(deck Cards, r *rand.Rand) OneSideDuelState {
+func NewOneSide(deck Cards, r *rand.Rand) OneSide {
 	deck = omwrand.Shuffled(deck, r)
 	hand := deck[:INIT_DRAW]
 	deck = deck[INIT_DRAW:]
-	return OneSideDuelState{
+	return OneSide{
 		LifePoint:INIT_LIFE_POINT,
 		Hand:hand, Deck:deck,
 		MonsterZone:make(Cards, MONSTER_ZONE_LENGTH),
@@ -63,34 +85,39 @@ func NewOneSideDuelState(deck Cards, r *rand.Rand) OneSideDuelState {
 	}
 }
 
-func (osds *OneSideDuelState) Draw(num int) {
-	drawCards := osds.Deck[:num]
-	deck = osds.Deck[num:]
-	osds.Hand = append(osds.Hand, drawCards...)
+func (o *OneSide) Draw(num int) {
+	drawCards := o.Deck[:num]
+	drawCards = fn.Map[Cards](drawCards, func(card Card) Card {
+		card.Face = FACE_UP
+		return card
+	})
+	o.Deck = o.Deck[num:]
+	o.Hand = append(o.Hand, drawCards...)
 }
 
-func (osds *OneSideDuelState) Discard(idxs []int) {
-	n := len(osds.Hand)
+func (o *OneSide) Discard(idxs []int) {
+	n := len(o.Hand)
 	newHand := make(Cards, n - len(idxs))
 	for i := 0; i < n; i++ {
 		if slices.Contains(idxs, i) {
-			osds.Graveyard = append(osds.Graveyard)
+			o.Graveyard = append(o.Graveyard)
 		} else {
-			newHand = append(newHand, osds.Hand[i])
+			newHand = append(newHand, o.Hand[i])
 		}
 	}
-	osds.Hand = newHand
+	o.Hand = newHand
 }
 
 type Duel struct {
-	P1 OneSideDuelState
-	P2 OneSideDuelState
+	P1 OneSide
+	P2 OneSide
 	Phase Phase
+	Turn int
 }
 
 func NewDuel(p1Deck, p2Deck Cards, r *rand.Rand) Duel {
-	p1 := NewOneSideDuelState(p1Deck, r)
-	p2 := NewOneSideDuelState(p2Deck, r)
+	p1 := NewOneSide(p1Deck, r)
+	p2 := NewOneSide(p2Deck, r)
 	return Duel{P1:p1, P2:p2}
 }
 
@@ -165,4 +192,26 @@ func (duel *Duel) Battle(action *Action) {
 	} else if destroyP2 {
 		destroyP2Func()
 	}
+}
+
+func Push(duel Duel, action *Action) Duel {
+	if action.Type == PHASE_TRANSITION_ACTION {
+		duel.Phase = PHASES[action.N1]
+		if duel.Phase == END_PHASE {
+			duel.Reverse()
+			duel.Turn += 1
+			duel.Phase = DRAW_PHASE
+			duel.P1.Draw(1)
+			duel.Phase = STANDBY_PHASE
+			duel.Phase = MAIN1_PHASE
+		}
+	}
+	return duel
+}
+
+func IsDuelEnd(duel *Duel) bool {
+	if omwslices.IsSubset(duel.P1.Hand.Names() , EXODIA_PARTS_NAMES) {
+		return true
+	}
+	return duel.P1.LifePoint <= 0 || duel.P2.LifePoint <= 0
 }

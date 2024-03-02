@@ -91,8 +91,8 @@ func NewLegalDirectAttackDeclarationActions(duel *Duel) Actions {
 	return fn.Filter(as, IsLegalDirectAttackDeclarationActions(duel))
 }
 
-func NewHandSpellSpeed1Card() Actions {
-	for _, card := range duel.P1.Hand {
-		HAND_SPELL_SPEED1[card.Name]
-	}
+func NewLegalActions(duel *Duel) Actions {
+	return NewPhaseTransitionActions(duel)
 }
+
+type Actionss []Actions
