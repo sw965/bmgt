@@ -70,6 +70,7 @@ type OneSide struct {
 	MonsterZone Cards
 	SpellTrapZone Cards
 	Graveyard Cards
+	IsDeckOut bool
 }
 
 func NewOneSide(deck Cards, r *rand.Rand) OneSide {
@@ -126,6 +127,23 @@ func (duel *Duel) Reverse() {
 	p2 := duel.P2
 	duel.P1 = p2
 	duel.P2 = p1
+}
+
+func (duel *Duel) DrawPhase(p1, p2 Player) {
+	if len(duel.P1.Deck) == 0 {
+		duel.P1.IsDeckOut = true
+		return
+	}
+
+	duel.P1.Draw(1)
+
+	for {
+		action := p1(duel)
+		if action.Type == PASS_PRIORITY_ACTION {
+			duel.Reverse()
+			continue
+		}
+	}
 }
 
 func(duel *Duel) DestructionByBattle(i int) {
@@ -215,3 +233,5 @@ func IsDuelEnd(duel *Duel) bool {
 	}
 	return duel.P1.LifePoint <= 0 || duel.P2.LifePoint <= 0
 }
+
+type Duels []Duel

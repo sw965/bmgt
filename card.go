@@ -139,6 +139,8 @@ func NewBattlePosition(face Face, o Orientation) BattlePosition {
 
 type CardID int
 
+type CardIDs []CardID
+
 type Card struct {
 	Name CardName
 	Level Level
@@ -200,6 +202,10 @@ func GetNameOfCard(card Card) CardName {
 	return card.Name
 }
 
+func GetIDOfCard(card Card) CardID {
+	return card.ID
+}
+
 func CanNormalSummonCard(card Card) bool {
 	return slices.Contains(LOW_LEVELS, card.Level)
 }
@@ -212,6 +218,10 @@ func NewCards(names ...CardName) Cards {
 
 func (cards Cards) Names() CardNames {
 	return fn.Map[CardNames](cards, GetNameOfCard)
+}
+
+func (cards Cards) IDs() CardIDs {
+	return fn.Map[CardIDs](cards, GetIDOfCard)
 }
 
 func (cards Cards) IsAllEmpty() bool {

@@ -5,6 +5,7 @@ import (
 	"github.com/sw965/bmgt"
 	omwrand "github.com/sw965/omw/rand"
 	"fmt"
+	"github.com/sw965/crow/game/sequential"
 )
 
 func Test(t *testing.T) {
@@ -52,5 +53,7 @@ func Test(t *testing.T) {
 	)
 	r := omwrand.NewMt19937()
 	duel := bmgt.NewDuel(deck1, deck1, r)
+	game := sequential.Game()
+
 	fmt.Println(duel)
 }
