@@ -21,16 +21,16 @@ type Action struct {
 	Type ActionType
 }
 
-type Actions []*Action
+type Actions []Action
 
 func NewPhaseTransitionActions(duel *Duel) Actions {
 	switch duel.Phase {
 		case MAIN1_PHASE:
-			return Actions{&Action{N1:BATTLE_PHASE_INDEX}, &Action{N1:END_PHASE_INDEX}}
+			return Actions{Action{N1:BATTLE_PHASE_INDEX}, Action{N1:END_PHASE_INDEX}}
 		case BATTLE_PHASE:
-			return Actions{&Action{N1:MAIN2_PHASE_INDEX}, &Action{N1:END_PHASE_INDEX}}
+			return Actions{Action{N1:MAIN2_PHASE_INDEX}, Action{N1:END_PHASE_INDEX}}
 		case MAIN2_PHASE:
-			return Actions{&Action{N1:END_PHASE_INDEX}}
+			return Actions{Action{N1:END_PHASE_INDEX}}
 		default:
 			return Actions{}
 	}
@@ -39,14 +39,14 @@ func NewPhaseTransitionActions(duel *Duel) Actions {
 func newNormalSummonActions(duel *Duel) Actions {
 	is := omwslices.NewSequentialInteger[[]int](0, len(duel.P1.Hand))
 	js := omwslices.NewSequentialInteger[[]int](0, MONSTER_ZONE_LENGTH)
-	f := func(i, j int) *Action {
-		return &Action{N1:i, N2:j, Type:NORMAL_SUMMON_ACTION}
+	f := func(i, j int) Action {
+		return Action{N1:i, N2:j, Type:NORMAL_SUMMON_ACTION}
 	}
 	return omwslices.Product2[[]int, []int, Actions](is, js, f)
 }
 
-func IsLegalNormalSummonAction(duel *Duel) func(*Action) bool {
-	return func(action *Action) bool {	
+func IsLegalNormalSummonAction(duel *Duel) func(Action) bool {
+	return func(action Action) bool {	
 		if !CanNormalSummonCard(duel.P1.Hand[action.N1]) {
 			return false
 		}
@@ -65,12 +65,12 @@ func NewLegalNormalSummonActions(duel *Duel) Actions {
 
 func newDirectAttackDeclarationActions(duel *Duel) Actions {
 	is := omwslices.NewSequentialInteger[[]int](0, MONSTER_ZONE_LENGTH)
-	f := func(i int) *Action { return &Action{N1:i, Type:DIRECT_ATTACK_DECLARATION_ACTION} }
+	f := func(i int) Action { return Action{N1:i, Type:DIRECT_ATTACK_DECLARATION_ACTION} }
 	return fn.Map[Actions](is, f)
 }
 
-func IsLegalDirectAttackDeclarationActions(duel *Duel) func(*Action) bool {	
-	return func(action *Action) bool {
+func IsLegalDirectAttackDeclarationActions(duel *Duel) func(Action) bool {	
+	return func(action Action) bool {
 		i := action.N1
 		if duel.P1.MonsterZone[i].Name == NO_NAME {
 			return false

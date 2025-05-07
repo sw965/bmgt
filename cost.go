@@ -18,7 +18,7 @@ func NewMagicalStoneExcavationActionss(duel *Duel) Actionss {
 			if i == j {
 				continue
 			}
-			cost0 = append(cost0, &Action{N1:1<<(1) + 1<<(j)})
+			cost0 = append(cost0, Action{N1:1<<(1) + 1<<(j)})
 		}
 	}
 	return Actionss{cost0}

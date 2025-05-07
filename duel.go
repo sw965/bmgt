@@ -212,7 +212,7 @@ func (duel *Duel) Battle(action *Action) {
 	}
 }
 
-func Push(duel Duel, action *Action) Duel {
+func Push(duel Duel, action Action) Duel {
 	if action.Type == PHASE_TRANSITION_ACTION {
 		duel.Phase = PHASES[action.N1]
 		if duel.Phase == END_PHASE {

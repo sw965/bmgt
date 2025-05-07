@@ -53,7 +53,10 @@ func Test(t *testing.T) {
 	)
 	r := omwrand.NewMt19937()
 	duel := bmgt.NewDuel(deck1, deck1, r)
-	game := sequential.Game()
-
-	fmt.Println(duel)
+	game := sequential.Game[bmgt.Duel, bmgt.Actions, bmgt.Action]{LegalActions:bmgt.NewLegalActions, Push:bmgt.Push, IsEnd:bmgt.IsDuelEnd}
+	game.SetRandomActionPlayer(r)
+	endDuel, duels, actions := game.PlayoutWithHistory(duel, 12800)
+	fmt.Println(endDuel)
+	fmt.Println(duels)
+	fmt.Println(actions)
 }

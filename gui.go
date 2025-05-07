@@ -47,12 +47,12 @@ func NewIDuels(ds Duels) IDuels {
 	return fn.Map[IDuels](ds, NewIDuel)
 }
 
-func (is IDuels) WriteJSON(paths []string) error {
-	for i, path := range paths {
-		iduel := is[i]
-		if err := iduel.WriteJSON(path); err != nil {
-			return err
-		}
-	}
-	return nil
+type Replay struct {
+	CardNames CardNames
+	CardIDs CardIDs
+	IDuels IDuels
+}
+
+func (r *Replay) WriteJSON(path string) error {
+	return omwjson.Write(r, path)
 }
