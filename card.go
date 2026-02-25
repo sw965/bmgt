@@ -54,10 +54,11 @@ const (
 )
 
 type Card struct {
-	Name CardName
-	Atk  int
-	Def  int
-	Id   int
+	Name       CardName
+	Atk        int
+	Def        int
+	IsAttacked bool
+	Id         int
 }
 
 type Cards []Card
