@@ -8,15 +8,15 @@ import (
 	"github.com/sw965/bmgt"
 	"github.com/sw965/crow/game"
 	"github.com/sw965/crow/game/sequential"
-	"github.com/sw965/crow/pucb"
 	"github.com/sw965/crow/mcts/puct"
+	"github.com/sw965/crow/pucb"
 	"github.com/sw965/omw/mathx/randx"
 )
 
 func main() {
 	// --- 1. 基本設定 ---
 	numGames := 100
-	mctsSimulations := 16000
+	mctsSimulations := 1600
 	numWorkers := runtime.NumCPU() // 並列実行数
 	masterRng := rand.New(rand.NewPCG(42, 42))
 
@@ -25,12 +25,12 @@ func main() {
 		LegalMovesFunc: func(s *bmgt.State) []bmgt.Move { return s.LegalMoves() },
 		MoveFunc: func(s *bmgt.State, m bmgt.Move) (*bmgt.State, error) {
 			next := s.Clone()
-			if err := next.Move(m); err != nil {
+			if err := next.Move(m, nil); err != nil {
 				return nil, err
 			}
 			return next, nil
 		},
-		EqualFunc: func(s1, s2 *bmgt.State) bool { return s1.Equal(s2) },
+		EqualFunc:        func(s1, s2 *bmgt.State) bool { return s1.Equal(s2) },
 		CurrentAgentFunc: func(s *bmgt.State) bmgt.TurnPlayer { return s.TurnPlayer },
 	}
 
@@ -54,14 +54,14 @@ func main() {
 		VirtualValue: 0.0, // 仮想損失（並列探索用）
 	}
 	puctEng.SetUniformPolicyFunc() // 方策は一様分布
-	
+
 	// リーフ評価はランダムプレイアウトで行う
 	playoutRng := rand.New(rand.NewPCG(1, 1))
 	puctEng.SetPlayout(randomActor, playoutRng)
 
 	// 探索用のワーカー乱数生成
 	workerRngs := randx.NewPCGs(1)
-	
+
 	mctsActor := sequential.ActorCritic[*bmgt.State, bmgt.Move, bmgt.TurnPlayer]{
 		Name: "MCTS-16000",
 		// 探索結果（訪問回数）に基づく方策と、根ノードの評価値を返す

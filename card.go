@@ -2,6 +2,18 @@ package bmgt
 
 type CardName int
 
+const (
+	DarkMagicianGirl = iota
+)
+
+func (n CardName) ToString() string {
+	switch n {
+	case DarkMagicianGirl:
+		return "Dark Magician Girl"
+	}
+	return ""
+}
+
 type Type int
 
 const (

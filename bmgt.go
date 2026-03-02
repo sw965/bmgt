@@ -112,21 +112,31 @@ func (s *OneSideState) Draw() {
 }
 
 type State struct {
-	First      *OneSideState
-	Second     *OneSideState
-	Phase      Phase
-	TurnPlayer TurnPlayer
-	TurnCount  int
+	First             *OneSideState
+	Second            *OneSideState
+	Phase             Phase
+	TurnPlayer        TurnPlayer
+	TurnCount         int
+	HasNormalSummoned bool
 }
 
 func NewInitState(deck1, deck2 Cards, rng *rand.Rand) *State {
 	return &State{
-		First:      NewInitOneSideState(deck1, rng),
-		Second:     NewInitOneSideState(deck2, rng),
-		Phase:      Main1Phase,
-		TurnPlayer: First,
-		TurnCount:  1,
+		First:             NewInitOneSideState(deck1, rng),
+		Second:            NewInitOneSideState(deck2, rng),
+		Phase:             Main1Phase,
+		TurnPlayer:        First,
+		TurnCount:         1,
+		HasNormalSummoned: true,
 	}
+}
+
+func (s *State) triggerUI(hook UIHook, cmd UICommand) {
+	if hook == nil {
+		return
+	}
+	cmd.TurnPlayer = s.TurnPlayer
+	hook(cmd)
 }
 
 func (s *State) Clone() *State {
@@ -160,9 +170,13 @@ func (s *State) NonTurnPlayerState() *OneSideState {
 	return s.First
 }
 
-func (s *State) NormalSummon(handIdx, zoneIdx int) error {
-	if s.Phase != Main1Phase { // && s.Phase != Main2Phase {
+func (s *State) NormalSummon(handIdx, zoneIdx int, hook UIHook) error {
+	if s.Phase != Main1Phase {
 		return fmt.Errorf("通常召喚はメインフェイズにのみ可能です")
+	}
+
+	if !s.HasNormalSummoned {
+		return fmt.Errorf("通常召喚権がないのに、通常召喚をしようとした")
 	}
 
 	tps := s.TurnPlayerState()
@@ -182,76 +196,24 @@ func (s *State) NormalSummon(handIdx, zoneIdx int) error {
 
 	// 手札からカードを削除
 	tps.Hand = append(tps.Hand[:handIdx], tps.Hand[handIdx+1:]...)
-	return nil
-}
-
-func (s *State) Battle(fromIdx, targetIdx int) error {
-	tps := s.TurnPlayerState()
-	// MonsterCard -> MonsterZone に修正
-	if tps.MonsterZone[fromIdx].Id == 0 {
-		return fmt.Errorf("空のモンスターゾーンで攻撃しようとした")
-	}
-
-	ntps := s.NonTurnPlayerState()
-	if ntps.MonsterZone[targetIdx].Id == 0 {
-		return fmt.Errorf("空のモンスターゾーンに対して攻撃しようとした")
-	}
-
-	attackCard := tps.MonsterZone[fromIdx]
-	defenseCard := tps.MonsterZone[targetIdx]
-
-	diff := attackCard.Atk - defenseCard.Atk
-	if diff > 0 {
-		// 1. 相手モンスターを破壊し、墓地へ送る
-		ntps.Graveyard = append(ntps.Graveyard, defenseCard)
-		ntps.MonsterZone[targetIdx] = Card{} // ゾーンを空（初期値）にする
-
-		// 相手のライフポイントを減らす
-		ntps.LifePoint -= LifePoint(diff)
-	} else if diff == 0 {
-		// 2. 相打ち: 両方のモンスターを破壊し、墓地へ送る
-		tps.Graveyard = append(tps.Graveyard, attackCard)
-		tps.MonsterZone[fromIdx] = Card{}
-
-		ntps.Graveyard = append(ntps.Graveyard, defenseCard)
-		ntps.MonsterZone[targetIdx] = Card{}
-	} else {
-		// 3. 攻撃の失敗 (diff < 0): 自分のモンスターが破壊される
-		tps.Graveyard = append(tps.Graveyard, attackCard)
-		tps.MonsterZone[fromIdx] = Card{}
-
-		// 自分のライフポイントを減らす（diffがマイナスなので -diff にする）
-		tps.LifePoint -= LifePoint(-diff)
-	}
-
-	// モンスターが相打ち・自爆特攻で破壊されていなければ、攻撃済みフラグを立てる
-	if tps.MonsterZone[fromIdx].Id != 0 {
-		tps.MonsterZone[fromIdx].IsAttacked = true
-	}
-	return nil
-}
-
-func (s *State) DirectAttack(fromIdx int) error {
-	tps := s.TurnPlayerState()
-
-	if tps.MonsterZone[fromIdx].Id == 0 {
-		return fmt.Errorf("空のモンスターゾーンでダイレクトアタックしようとした")
-	}
-
-	attackCard := tps.MonsterZone[fromIdx]
-	ntps := s.NonTurnPlayerState()
-	ntps.LifePoint -= LifePoint(attackCard.Atk)
-	tps.MonsterZone[fromIdx].IsAttacked = true
+	s.HasNormalSummoned = false
+	s.triggerUI(hook, UICommand{
+		Type:                       NormalSummonUICommand,
+		TurnPlayerHandIndex:        handIdx,
+		TurnPlayerMonsterZoneIndex: zoneIdx,
+	})
 	return nil
 }
 
 func (s *State) LegalMoves() []Move {
 	moves := make([]Move, 0, 16)
 	if s.Phase == Main1Phase {
-		moves = append(moves, Move{
-			Type:        PhaseChange,
-			TargetPhase: BattlePhase,
-		})
+		if s.TurnCount != 1 {
+			moves = append(moves, Move{
+				Type:        PhaseChange,
+				TargetPhase: BattlePhase,
+			})
+		}
 
 		moves = append(moves, Move{
 			Type:        PhaseChange,
@@ -272,15 +234,18 @@ func (s *State) LegalMoves() []Move {
 			if tps.Hand[fromIdx].Id == 0 {
 				continue
 			}
-			for targetIdx := range tps.MonsterZone {
-				if tps.MonsterZone[targetIdx].Id != 0 {
-					continue
+
+			if s.HasNormalSummoned {
+				for targetIdx := range tps.MonsterZone {
+					if tps.MonsterZone[targetIdx].Id != 0 {
+						continue
+					}
+					moves = append(moves, Move{
+						Type:        NormalSummon,
+						FromIndex:   fromIdx,
+						TargetIndex: targetIdx,
+					})
 				}
-				moves = append(moves, Move{
-					Type:        NormalSummon,
-					FromIndex:   fromIdx,
-					TargetIndex: targetIdx,
-				})
 			}
 		}
 	}
@@ -332,14 +297,14 @@ func (s *State) LegalMoves() []Move {
 	return moves
 }
 
-func (s *State) Move(move Move) error {
+func (s *State) Move(move Move, hook UIHook) error {
 	switch move.Type {
 	case NormalSummon:
-		return s.NormalSummon(move.FromIndex, move.TargetIndex)
+		return s.NormalSummon(move.FromIndex, move.TargetIndex, hook)
 	case Attack:
-		return s.Battle(move.FromIndex, move.TargetIndex)
+		return s.Battle(move.FromIndex, move.TargetIndex, hook)
 	case DirectAttack:
-		return s.DirectAttack(move.FromIndex)
+		return s.DirectAttack(move.FromIndex, hook)
 	case PhaseChange:
 		s.Phase = move.TargetPhase
 		if s.Phase == EndPhase {
@@ -347,13 +312,13 @@ func (s *State) Move(move Move) error {
 			for i := range tps.MonsterZone {
 				tps.MonsterZone[i].IsAttacked = false
 			}
-
 			s.TurnCount++
 			s.TurnPlayer = s.TurnPlayer.Opposite()
 
 			nextTps := s.TurnPlayerState()
 			nextTps.Draw()
 			s.Phase = Main1Phase
+			s.HasNormalSummoned = true
 		}
 	}
 	return nil
